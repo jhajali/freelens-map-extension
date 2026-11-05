@@ -1,0 +1,49 @@
+# The least a user needs for every data source of the Freelens Service Map.
+# Read-only toward cluster resources: pods/portforward reaches Hubble Relay
+# and services/proxy reaches Prometheus, as Freelens's own port-forward does.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: freelens-service-map-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, namespaces, nodes]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [services/proxy]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets]
+    verbs: [get, list]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, gateways]
+    verbs: [get, list]
+  - apiGroups: [cilium.io]
+    resources: [ciliumnetworkpolicies, ciliumclusterwidenetworkpolicies]
+    verbs: [get, list]
+  - apiGroups: [apps.kubeblocks.io]
+    resources: [clusters, instancesets]
+    verbs: [get, list]
+  - apiGroups: [workloads.kubeblocks.io]
+    resources: [instancesets]
+    verbs: [get, list]
+  # Grant it to a group, for example:
+  # ---
+  # apiVersion: rbac.authorization.k8s.io/v1
+  # kind: ClusterRoleBinding
+  # metadata:
+  #   name: freelens-service-map-reader
+  # roleRef:
+  #   apiGroup: rbac.authorization.k8s.io
+  #   kind: ClusterRole
+  #   name: freelens-service-map-reader
+  # subjects:
+  # - apiGroup: rbac.authorization.k8s.io
+  #   kind: Group
+  #   name: service-map-users

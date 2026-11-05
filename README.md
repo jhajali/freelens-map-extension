@@ -1,255 +1,170 @@
-# @freelensapp/example-extension
+# Freelens Service Map
 
-[![Home](https://img.shields.io/badge/%F0%9F%8F%A0-freelens.app-02a7a0)](https://freelens.app)
-[![GitHub](https://img.shields.io/github/stars/freelensapp/freelens?style=flat&label=GitHub%20%E2%AD%90)](https://github.com/freelensapp/freelens)
-[![DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/freelensapp/freelens-example-extension)
-[![Release](https://img.shields.io/github/v/release/freelensapp/freelens-example-extension?display_name=tag&sort=semver)](https://github.com/freelensapp/freelens-example-extension)
-[![npm](https://img.shields.io/npm/v/@freelensapp/example-extension.svg)](https://www.npmjs.com/package/@freelensapp/example-extension)
-[![Integration tests](https://github.com/freelensapp/freelens-example-extension/actions/workflows/integration-tests.yaml/badge.svg?branch=main)](https://github.com/freelensapp/freelens-example-extension/actions/workflows/integration-tests.yaml)
+[![npm](https://img.shields.io/npm/v/freelens-service-map-extension.svg)](https://www.npmjs.com/package/freelens-service-map-extension)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Overview
+A live map of your cluster inside [Freelens](https://freelens.app): namespaces,
+the services inside them, who talks to whom, which service uses which
+database, what comes in from outside and what leaves. Traffic comes from
+Cilium Hubble when the cluster has it; without it the map still shows the
+topology from the Kubernetes API.
 
-This repository is the reference template for building, type-checking,
-testing and releasing an extension for the [Freelens](https://freelens.app)
-application. The
-[Freelens extension documentation](https://github.com/freelensapp/freelens/tree/v2.0.0/docs/extensions)
-describes the extension API and points here for everything around it. Start a
-new extension from a copy of this repository.
+## Features
 
-The extension adds a cluster page, a details panel and a context menu item
-for a custom resource, `Example`, and a setting on the preferences page:
-
-- **Two API versions of one CRD.** `Example` is implemented for `v1alpha1`
-  and `v1alpha2`, each with its own model, list page, details and menu item.
-  `v1alpha2` renames `spec.active` to `spec.suspended`, with the meaning
-  inverted.
-- **The served API version picked at runtime.** The "Examples" page shows the
-  newest version the cluster serves, or a message when the CRDs are not
-  installed.
-- **One sidebar entry for the resource.** While the extension is enabled,
-  `Example` is left out of the Custom Resources tree of the cluster sidebar,
-  so it is listed once, under "Examples".
-- **Static helpers on the model.** Per-object logic is a `static` method that
-  takes the object, such as `Example.getSuspended(object)`.
-- **An error boundary.** Each page, details panel and menu item renders an
-  error message instead of breaking the view when it throws.
-- **A persisted preference.** The "Example checkbox" setting is kept across
-  restarts and shown in the details panel.
-
-## Agent skills
-
-Two skills in the [Agent Skills](https://agentskills.io/specification)
-format guide a coding agent, such as Claude Code, Codex, GitHub Copilot,
-Cursor or Gemini CLI, through an extension in its own repository:
-
-- `create-freelens-extension` starts a new Freelens extension from a copy of
-  this repository.
-- `port-freelens-extension-to-v2` ports an extension written for the v1
-  extension API to v2.
-
-Install both into the extension's repository, or one of them with `--skill`:
-
-```sh
-npx skills add freelensapp/freelens-example-extension
-npx skills add freelensapp/freelens-example-extension --skill port-freelens-extension-to-v2
-```
-
-or copy its directory from [`skills/`](skills) to where the agent reads skills
-from.
+- **Three zoom levels.** All clusters, one cluster (its namespaces), one
+  namespace (its workloads, grouped by Helm release). "Service map" in the
+  cluster sidebar opens it; "Show on map" in the menu of a Namespace,
+  Deployment, StatefulSet or DaemonSet opens it on that object.
+- **Live traffic.** Links carry protocol, rate and drops, with particles that
+  follow the rate. Red means only that something is wrong.
+- **Entry and exit points.** LoadBalancers, Gateway API routes and Ingress on
+  the way in; the Internet, internal networks and other clusters on the way
+  out.
+- **Details panel.** Status, pods, CPU and RAM against limits, inbound and
+  outbound peers, exposure, network policy, and buttons that open the object,
+  its logs or a shell in Freelens.
+- **Color by** CPU, RAM, pod health, traffic or network policy; quick views
+  for problems, exposed services, egress, databases, drops and changes over
+  the last 24 hours; search; filters.
+- **Export** as PNG or SVG, with names anonymized if you choose.
 
 ## Requirements
 
-- Freelens >= 2.0.0
-- Kubernetes >= 1.24
+Freelens 2.0 or newer. Each optional data source adds to what the map shows,
+and the **Data** menu on the map says which ones it found, with a fix for the
+missing ones:
 
-## Supported APIs
-
-### example.freelens.app
-
-| API Version | Kind      | Scope      | Description                        |
-| ----------- | --------- | ---------- | ---------------------------------- |
-| v1alpha1    | `Example` | Namespaced | Example custom resource (v1alpha1) |
-| v1alpha2    | `Example` | Namespaced | Example custom resource (v1alpha2) |
-
-To install the Custom Resource Definitions for this example, run:
-
-```sh
-kubectl apply -k examples/v1alpha1/crds
-kubectl apply -k examples/v1alpha2/crds
-```
-
-Example resources for testing:
-
-```sh
-kubectl apply -k examples/v1alpha2/test
-# or
-kubectl apply -k examples/v1alpha1/test
-```
+| Data sources found  | The map shows                                                              |
+| ------------------- | -------------------------------------------------------------------------- |
+| Kubernetes only     | Topology from workloads, Services, routes and LoadBalancers; no live data. |
+| Prometheus          | Plus CPU and RAM per workload.                                             |
+| Hubble Relay        | Plus live traffic: flows, protocols, drops, verdicts.                      |
+| Hubble + Prometheus | Everything.                                                                |
+- **Hubble Relay**: Cilium with Hubble Relay enabled
+  (`cilium hubble enable --relay`). Found as `kube-system/hubble-relay`
+  unless set otherwise in Settings.
+- **Prometheus**: found by its usual service names (`prometheus-server`,
+  `prometheus-operated`, `kube-prometheus-stack-prometheus`,
+  `prometheus-k8s`, `prometheus`) unless set otherwise in Settings.
 
 ## Install
 
-Open Freelens and go to Extensions (`ctrl`+`shift`+`E` or
-`cmd`+`shift`+`E`). The field at the top takes a package name, the URL of a
-tarball, or the path to a tarball or a directory.
+In Freelens, open **Extensions**, enter `freelens-service-map-extension` and
+press **Install**.
 
-### From the registry
+## Permissions
 
-Enter `@freelensapp/example-extension` and press Install.
+The extension is read-only toward cluster resources. It installs nothing in
+the cluster and runs no agent. It opens a port-forward to Hubble Relay and
+reaches Prometheus through the API server's service proxy, as Freelens's own
+port-forward does. The least a user needs for every data source is this
+ClusterRole, also in [`deploy/service-map-reader.yaml`](deploy/service-map-reader.yaml):
 
-Alternatively, open the following URL in the browser to install directly:
-
-[freelens://app/extensions/install/%40freelensapp%2Fexample-extension](freelens://app/extensions/install/%40freelensapp%2Fexample-extension)
-
-### From a release tarball
-
-Each [release](https://github.com/freelensapp/freelens-example-extension/releases)
-has the extension as `freelensapp-example-extension-<version>.tgz`, with its
-checksum in `freelensapp-example-extension-<version>.tgz.sha256`. Use a
-release whose major version matches your Freelens version.
-
-- Enter the URL of the `.tgz` asset and press Install. Freelens downloads the
-  `.tgz.sha256` next to it and checks the tarball against it.
-- Or download both files into one directory and enter the path to the `.tgz`,
-  or drop the `.tgz` on the Freelens window. Freelens checks it against the
-  `.tgz.sha256` next to it.
-
-### From a directory
-
-Build the extension (see below), then enter the path to your checkout, the
-directory with `package.json`, and press Install. Freelens runs the extension
-from that directory, from the files in `dist/`, and lists it as unverified.
-This is how you work on the extension: see
-[Development loop](#development-loop).
-
-## Build from the source
-
-### Prerequisites
-
-Use [NVM](https://github.com/nvm-sh/nvm),
-[mise-en-place](https://mise.jdx.dev/), or
-[windows-nvm](https://github.com/coreybutler/nvm-windows) to install the
-Node.js version in `.nvmrc`.
-
-From the root of this repository:
-
-```sh
-nvm install
-# or
-mise install
-# or
-winget install CoreyButler.NVMforWindows
-nvm install "$(cat .nvmrc)"
-nvm use "$(cat .nvmrc)"
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: freelens-service-map-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, namespaces, nodes]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [services/proxy]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets]
+    verbs: [get, list]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes, gateways]
+    verbs: [get, list]
+  - apiGroups: [cilium.io]
+    resources: [ciliumnetworkpolicies, ciliumclusterwidenetworkpolicies]
+    verbs: [get, list]
+  - apiGroups: [apps.kubeblocks.io]
+    resources: [clusters, instancesets]
+    verbs: [get, list]
+  - apiGroups: [workloads.kubeblocks.io]
+    resources: [instancesets]
+    verbs: [get, list]
 ```
 
-Install pnpm:
+- `pods/portforward` is only needed in the namespace of Hubble Relay; a Role
+  there can grant it instead of the ClusterRole.
+- `services/proxy` is only needed in the namespace of Prometheus.
+- The resources of a CRD the cluster does not have (Gateway API, Cilium,
+  KubeBlocks) are skipped.
+- When a permission is missing, the Data menu names it, and the map falls
+  back to the sources it can read.
 
-```sh
-corepack install
-# or
-curl -fsSL https://get.pnpm.io/install.sh | sh -
-# or
-winget install pnpm.pnpm
+## Hubble Relay and TLS
+
+A plaintext Relay, Cilium's default, works as is. A Relay with TLS is not
+supported yet: the Data menu shows "TLS enabled, client certs not readable".
+
+## Public endpoints
+
+A LoadBalancer is public when one of its addresses is public or a hostname.
+A private LoadBalancer behind an external one (for example a cloud load
+balancer in front of Cilium LB-IPAM) can be marked public with an annotation
+whose value is the address users reach:
+
+```yaml
+metadata:
+  annotations:
+    servicemap.freelens.io/public-endpoint: shop.example.com
 ```
 
-### Build extension
+The **Public endpoints** setting does the same without changing the Service.
 
-```sh
+## Settings
+
+The map's Settings button opens the settings of the current cluster:
+
+- **Problems**: the CPU %, RAM % and restart thresholds above which a workload
+  counts as a problem.
+- **Named networks**: `CIDR = name` lines; egress to such a network shows
+  under its name instead of "Internal network".
+- **Public endpoints**: `namespace/service = endpoint` lines, as the
+  annotation above.
+- **Palette**: a color-blind safe palette for the status colors.
+- **Anonymize names**: replaces names on the map and in exports, for
+  screenshots.
+- **Data sources**: the Hubble Relay and Prometheus services, as
+  `namespace/service:port`, when they are not found on their own.
+
+## Privacy
+
+The extension talks to the clusters you open in Freelens, through Freelens.
+The only other requests are reverse DNS lookups of the public IPs your
+workloads talk to, through your system's resolver, to name them on the map.
+The history of traffic snapshots (24 hours, rates only) stays in Freelens's
+extension storage on your machine.
+
+## Development
+
+```bash
 pnpm install
-pnpm build
-```
-
-The extension is built into `dist/`. To pack it into a tarball:
-
-```sh
-pnpm pack
-```
-
-One script to bump the prerelease version, build and pack the extension for
-testing:
-
-```sh
-pnpm pack:dev
-```
-
-The tarball is placed in the current directory. Install it as described in
-[From a release tarball](#from-a-release-tarball).
-
-### Development loop
-
-Install the extension from your checkout once, as described in
-[From a directory](#from-a-directory), then run:
-
-```sh
-pnpm dev
-```
-
-It rebuilds the extension whenever a source file changes, and Freelens
-reloads the extension after each rebuild, without a restart and without
-packing. Stop it with `ctrl`+`C`.
-
-Neither `pnpm build` nor `pnpm dev` type-checks; run `pnpm type:check` for
-that. A change to `main` or `renderer` in `package.json` needs Freelens
-restarted once.
-
-To check the extension in Freelens with an AI agent, see "Checking the
-Extension in Freelens Dev" in [AGENTS.md](AGENTS.md).
-
-### Check the code
-
-```sh
-pnpm type:check
+pnpm build              # dist/ for Freelens
 pnpm test:unit
-pnpm lint:check
-pnpm knip:check
+pnpm type:check
+pnpm test:integration   # against Freelens dev and a kind cluster
 ```
 
-and, for the formats that Biome does not cover:
+To try a change, install the checkout's directory on the Extensions page of
+Freelens dev. The build, test and CI conventions are in [`AGENTS.md`](AGENTS.md).
 
-```sh
-pnpm trunk:check
-```
+## License and attribution
 
-### Integration tests
-
-The integration tests drive Freelens dev, started from a
-[freelensapp/freelens](https://github.com/freelensapp/freelens) checkout,
-against a [kind](https://kind.sigs.k8s.io/) cluster. In the Freelens checkout:
-
-```sh
-pnpm dev
-```
-
-Freelens dev lists no cluster until a kubeconfig is added in Preferences >
-Kubernetes > Kubeconfig Syncs. Add one with the kind cluster, for example:
-
-```sh
-kubectl config view --minify --flatten --context kind-kind > ~/kind-kind.kubeconfig
-```
-
-Then, with the kind cluster running, in the extension repository:
-
-```sh
-pnpm build
-pnpm test:integration
-```
-
-The tests install the checkout in place, replacing any other installation of
-the extension in Freelens dev. They delete the `examples.example.freelens.app`
-CRD, and with it every `Example`, so use a kind cluster with nothing worth
-keeping. Without Freelens dev or the cluster the tests are skipped.
-
-Optional variables:
-
-- `TEST_KIND_CLUSTER_NAME`: the kind cluster, `kind` by default, used
-  through the context `kind-<name>`.
-- `FREELENS_CDP_URL`: the CDP endpoint of Freelens dev,
-  `http://127.0.0.1:9223` by default.
-- `FREELENS_MAIN_LOG`: a log of the main process to check for errors, such
-  as its `lens.log`. Without it only the renderer's errors are checked.
-
-## License
-
-Copyright (c) 2025-2026 Freelens Authors.
-
-[MIT License](https://opensource.org/licenses/MIT)
+MIT, see [`LICENSE`](LICENSE). The Kubernetes icons are from
+[kubernetes/community](https://github.com/kubernetes/community/tree/master/icons),
+licensed under CC-BY-4.0, copyright the Kubernetes Authors. The project
+started from the
+[Freelens example extension](https://github.com/freelensapp/freelens-example-extension)
+(MIT). See [`NOTICE`](NOTICE).
