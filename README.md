@@ -1,0 +1,255 @@
+# @freelensapp/example-extension
+
+[![Home](https://img.shields.io/badge/%F0%9F%8F%A0-freelens.app-02a7a0)](https://freelens.app)
+[![GitHub](https://img.shields.io/github/stars/freelensapp/freelens?style=flat&label=GitHub%20%E2%AD%90)](https://github.com/freelensapp/freelens)
+[![DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/freelensapp/freelens-example-extension)
+[![Release](https://img.shields.io/github/v/release/freelensapp/freelens-example-extension?display_name=tag&sort=semver)](https://github.com/freelensapp/freelens-example-extension)
+[![npm](https://img.shields.io/npm/v/@freelensapp/example-extension.svg)](https://www.npmjs.com/package/@freelensapp/example-extension)
+[![Integration tests](https://github.com/freelensapp/freelens-example-extension/actions/workflows/integration-tests.yaml/badge.svg?branch=main)](https://github.com/freelensapp/freelens-example-extension/actions/workflows/integration-tests.yaml)
+
+## Overview
+
+This repository is the reference template for building, type-checking,
+testing and releasing an extension for the [Freelens](https://freelens.app)
+application. The
+[Freelens extension documentation](https://github.com/freelensapp/freelens/tree/v2.0.0/docs/extensions)
+describes the extension API and points here for everything around it. Start a
+new extension from a copy of this repository.
+
+The extension adds a cluster page, a details panel and a context menu item
+for a custom resource, `Example`, and a setting on the preferences page:
+
+- **Two API versions of one CRD.** `Example` is implemented for `v1alpha1`
+  and `v1alpha2`, each with its own model, list page, details and menu item.
+  `v1alpha2` renames `spec.active` to `spec.suspended`, with the meaning
+  inverted.
+- **The served API version picked at runtime.** The "Examples" page shows the
+  newest version the cluster serves, or a message when the CRDs are not
+  installed.
+- **One sidebar entry for the resource.** While the extension is enabled,
+  `Example` is left out of the Custom Resources tree of the cluster sidebar,
+  so it is listed once, under "Examples".
+- **Static helpers on the model.** Per-object logic is a `static` method that
+  takes the object, such as `Example.getSuspended(object)`.
+- **An error boundary.** Each page, details panel and menu item renders an
+  error message instead of breaking the view when it throws.
+- **A persisted preference.** The "Example checkbox" setting is kept across
+  restarts and shown in the details panel.
+
+## Agent skills
+
+Two skills in the [Agent Skills](https://agentskills.io/specification)
+format guide a coding agent, such as Claude Code, Codex, GitHub Copilot,
+Cursor or Gemini CLI, through an extension in its own repository:
+
+- `create-freelens-extension` starts a new Freelens extension from a copy of
+  this repository.
+- `port-freelens-extension-to-v2` ports an extension written for the v1
+  extension API to v2.
+
+Install both into the extension's repository, or one of them with `--skill`:
+
+```sh
+npx skills add freelensapp/freelens-example-extension
+npx skills add freelensapp/freelens-example-extension --skill port-freelens-extension-to-v2
+```
+
+or copy its directory from [`skills/`](skills) to where the agent reads skills
+from.
+
+## Requirements
+
+- Freelens >= 2.0.0
+- Kubernetes >= 1.24
+
+## Supported APIs
+
+### example.freelens.app
+
+| API Version | Kind      | Scope      | Description                        |
+| ----------- | --------- | ---------- | ---------------------------------- |
+| v1alpha1    | `Example` | Namespaced | Example custom resource (v1alpha1) |
+| v1alpha2    | `Example` | Namespaced | Example custom resource (v1alpha2) |
+
+To install the Custom Resource Definitions for this example, run:
+
+```sh
+kubectl apply -k examples/v1alpha1/crds
+kubectl apply -k examples/v1alpha2/crds
+```
+
+Example resources for testing:
+
+```sh
+kubectl apply -k examples/v1alpha2/test
+# or
+kubectl apply -k examples/v1alpha1/test
+```
+
+## Install
+
+Open Freelens and go to Extensions (`ctrl`+`shift`+`E` or
+`cmd`+`shift`+`E`). The field at the top takes a package name, the URL of a
+tarball, or the path to a tarball or a directory.
+
+### From the registry
+
+Enter `@freelensapp/example-extension` and press Install.
+
+Alternatively, open the following URL in the browser to install directly:
+
+[freelens://app/extensions/install/%40freelensapp%2Fexample-extension](freelens://app/extensions/install/%40freelensapp%2Fexample-extension)
+
+### From a release tarball
+
+Each [release](https://github.com/freelensapp/freelens-example-extension/releases)
+has the extension as `freelensapp-example-extension-<version>.tgz`, with its
+checksum in `freelensapp-example-extension-<version>.tgz.sha256`. Use a
+release whose major version matches your Freelens version.
+
+- Enter the URL of the `.tgz` asset and press Install. Freelens downloads the
+  `.tgz.sha256` next to it and checks the tarball against it.
+- Or download both files into one directory and enter the path to the `.tgz`,
+  or drop the `.tgz` on the Freelens window. Freelens checks it against the
+  `.tgz.sha256` next to it.
+
+### From a directory
+
+Build the extension (see below), then enter the path to your checkout, the
+directory with `package.json`, and press Install. Freelens runs the extension
+from that directory, from the files in `dist/`, and lists it as unverified.
+This is how you work on the extension: see
+[Development loop](#development-loop).
+
+## Build from the source
+
+### Prerequisites
+
+Use [NVM](https://github.com/nvm-sh/nvm),
+[mise-en-place](https://mise.jdx.dev/), or
+[windows-nvm](https://github.com/coreybutler/nvm-windows) to install the
+Node.js version in `.nvmrc`.
+
+From the root of this repository:
+
+```sh
+nvm install
+# or
+mise install
+# or
+winget install CoreyButler.NVMforWindows
+nvm install "$(cat .nvmrc)"
+nvm use "$(cat .nvmrc)"
+```
+
+Install pnpm:
+
+```sh
+corepack install
+# or
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+# or
+winget install pnpm.pnpm
+```
+
+### Build extension
+
+```sh
+pnpm install
+pnpm build
+```
+
+The extension is built into `dist/`. To pack it into a tarball:
+
+```sh
+pnpm pack
+```
+
+One script to bump the prerelease version, build and pack the extension for
+testing:
+
+```sh
+pnpm pack:dev
+```
+
+The tarball is placed in the current directory. Install it as described in
+[From a release tarball](#from-a-release-tarball).
+
+### Development loop
+
+Install the extension from your checkout once, as described in
+[From a directory](#from-a-directory), then run:
+
+```sh
+pnpm dev
+```
+
+It rebuilds the extension whenever a source file changes, and Freelens
+reloads the extension after each rebuild, without a restart and without
+packing. Stop it with `ctrl`+`C`.
+
+Neither `pnpm build` nor `pnpm dev` type-checks; run `pnpm type:check` for
+that. A change to `main` or `renderer` in `package.json` needs Freelens
+restarted once.
+
+To check the extension in Freelens with an AI agent, see "Checking the
+Extension in Freelens Dev" in [AGENTS.md](AGENTS.md).
+
+### Check the code
+
+```sh
+pnpm type:check
+pnpm test:unit
+pnpm lint:check
+pnpm knip:check
+```
+
+and, for the formats that Biome does not cover:
+
+```sh
+pnpm trunk:check
+```
+
+### Integration tests
+
+The integration tests drive Freelens dev, started from a
+[freelensapp/freelens](https://github.com/freelensapp/freelens) checkout,
+against a [kind](https://kind.sigs.k8s.io/) cluster. In the Freelens checkout:
+
+```sh
+pnpm dev
+```
+
+Freelens dev lists no cluster until a kubeconfig is added in Preferences >
+Kubernetes > Kubeconfig Syncs. Add one with the kind cluster, for example:
+
+```sh
+kubectl config view --minify --flatten --context kind-kind > ~/kind-kind.kubeconfig
+```
+
+Then, with the kind cluster running, in the extension repository:
+
+```sh
+pnpm build
+pnpm test:integration
+```
+
+The tests install the checkout in place, replacing any other installation of
+the extension in Freelens dev. They delete the `examples.example.freelens.app`
+CRD, and with it every `Example`, so use a kind cluster with nothing worth
+keeping. Without Freelens dev or the cluster the tests are skipped.
+
+Optional variables:
+
+- `TEST_KIND_CLUSTER_NAME`: the kind cluster, `kind` by default, used
+  through the context `kind-<name>`.
+- `FREELENS_CDP_URL`: the CDP endpoint of Freelens dev,
+  `http://127.0.0.1:9223` by default.
+- `FREELENS_MAIN_LOG`: a log of the main process to check for errors, such
+  as its `lens.log`. Without it only the renderer's errors are checked.
+
+## License
+
+Copyright (c) 2025-2026 Freelens Authors.
+
+[MIT License](https://opensource.org/licenses/MIT)

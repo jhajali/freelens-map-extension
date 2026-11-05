@@ -1,0 +1,26 @@
+declare const classNames: {
+  readonly page: "page";
+  readonly card: "card";
+  readonly nsCard: "nsCard";
+  readonly ext: "ext";
+  readonly top: "top";
+  readonly crumb: "crumb";
+  readonly spacer: "spacer";
+  readonly note: "note";
+  readonly empty: "empty";
+  readonly canvas: "canvas";
+  readonly head: "head";
+  readonly name: "name";
+  readonly sub: "sub";
+  readonly row: "row";
+  readonly dot: "dot";
+  readonly dotOff: "dotOff";
+  readonly warn: "warn";
+  readonly badge: "badge";
+  readonly glyph: "glyph";
+  readonly cluster: "cluster";
+  readonly group: "group";
+  readonly chart: "chart";
+  readonly label: "label";
+};
+export = classNames;

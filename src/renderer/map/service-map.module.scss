@@ -1,0 +1,234 @@
+@use "../vars";
+
+// Map tokens on top of the Freelens theme variables; the rest are the prototype's dark values, swapped for light below.
+.page {
+  --canvas: var(--mainBackground);
+  --node: var(--contentColor);
+  --ink: var(--textColorPrimary);
+  --hair: var(--borderColor);
+  --accent: var(--blue);
+  --ink-2: #aab0b5;
+  --muted: #80868c;
+  --hair-2: #50575d;
+  --grid: #2c3136;
+  --group: rgba(61, 144, 206, 0.045);
+  --l-web: #3987e5;
+  --l-data: #199e70;
+  --l-other: #80868c;
+  --l-route: #5d646a;
+  --good: #0ca30c;
+  --warn: #fab219;
+  --crit: #d03b3b;
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 13px;
+
+  :global(.react-flow) {
+    --xy-background-color: var(--canvas);
+  }
+  :global(.react-flow__handle) {
+    opacity: 0;
+  }
+  :global(.react-flow__node.selected) .card,
+  :global(.react-flow__node.selected) .nsCard,
+  :global(.react-flow__node.selected) .ext {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+:global(body.theme-light) .page {
+  --ink-2: #4e555c;
+  --muted: #7d848b;
+  --hair-2: #c2c8cd;
+  --grid: #e2e5e8;
+  --group: rgba(47, 127, 191, 0.04);
+  --l-web: #2a78d6;
+  --l-data: #1baf7a;
+  --l-other: #9aa0a6;
+  --l-route: #b5bbc0;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--hair);
+}
+.crumb {
+  font-size: 14px;
+  color: var(--ink-2);
+  b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  a {
+    color: var(--ink-2);
+    cursor: pointer;
+    &:hover {
+      color: var(--accent);
+    }
+  }
+}
+.spacer {
+  flex: 1;
+}
+.note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.empty {
+  padding: 3 * vars.$padding;
+  color: var(--muted);
+}
+.canvas {
+  flex: 1;
+  position: relative;
+}
+
+.card,
+.nsCard {
+  position: relative;
+  background: var(--node);
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  box-shadow: inset 3px 0 0 var(--st, var(--hair));
+  color: var(--ink);
+  font-size: 11.5px;
+}
+.card {
+  width: 230px;
+  overflow: hidden;
+  padding: 10px 12px 10px 15px;
+}
+.nsCard {
+  width: 210px;
+  padding: 11px 12px 11px 15px;
+}
+.head {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  img {
+    width: 28px;
+    height: 28px;
+  }
+  > div {
+    flex: 1;
+    min-width: 0;
+  }
+}
+.name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card .name {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.sub {
+  color: var(--muted);
+}
+.row {
+  margin-top: 6px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 3px;
+  background: var(--good);
+}
+.dotOff {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--crit);
+}
+.warn {
+  color: var(--crit);
+}
+.badge {
+  align-self: flex-start;
+  border: 1px solid var(--l-data);
+  color: var(--ink-2);
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 16px;
+}
+.glyph {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  font-size: 10px;
+  line-height: 1;
+}
+.ext {
+  width: 180px;
+  border: 1px dashed var(--hair-2);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  img {
+    width: 22px;
+  }
+  .name {
+    color: var(--ink);
+  }
+}
+.cluster {
+  border-color: var(--accent);
+}
+.group {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--hair);
+  border-radius: 12px;
+  background: var(--group);
+  padding: 8px 12px;
+  font-size: 11.5px;
+  color: var(--muted);
+  b {
+    color: var(--ink-2);
+    font-weight: 600;
+  }
+}
+.chart {
+  margin-left: 8px;
+}
+.label {
+  position: absolute;
+  pointer-events: none;
+  font-size: 10.5px;
+  line-height: 1.3;
+  background: var(--canvas);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--ink-2);
+  white-space: pre;
+  border: 1px solid var(--grid);
+  i {
+    display: inline-block;
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+}

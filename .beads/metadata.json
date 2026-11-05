@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "freelens_map_extension",
+  "project_id": "ee41c8db-1666-4707-8f87-15ac6bc31edd"
+}

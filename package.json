@@ -1,0 +1,102 @@
+{
+  "name": "freelens-service-map-extension",
+  "version": "0.1.0-0",
+  "description": "Live service map for Freelens: namespaces, services, databases and traffic from Cilium Hubble",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jhajali/freelens-service-map-extension.git",
+    "directory": "."
+  },
+  "main": "dist/main.js",
+  "renderer": "dist/renderer.js",
+  "files": [
+    "dist/**/*"
+  ],
+  "engines": {
+    "node": ">= 24.0.0",
+    "freelens": "^2.0.0"
+  },
+  "copyright": "© 2026 Freelens Service Map authors",
+  "license": "MIT",
+  "type": "module",
+  "author": {
+    "name": "jihed haj ali"
+  },
+  "scripts": {
+    "biome": "pnpm dlx @biomejs/biome@2.6.3",
+    "biome:check": "pnpm biome check",
+    "biome:fix": "pnpm biome check --fix",
+    "biome:migrate": "pnpm biome migrate --write",
+    "trunk": "pnpm dlx @trunkio/launcher@1.3.4",
+    "trunk:check": "pnpm trunk check",
+    "trunk:check:all": "pnpm trunk check --all",
+    "trunk:fix": "pnpm trunk check --fix",
+    "trunk:fix:all": "pnpm trunk check --fix --all",
+    "lint": "pnpm lint:check",
+    "lint:check": "pnpm biome:check",
+    "lint:fix": "pnpm biome:fix",
+    "knip": "pnpm dlx knip@6.41.0 --dependencies --files --no-gitignore --no-config-hints",
+    "knip:check": "pnpm \"/^knip:(development|production)\\$/\"",
+    "knip:development": "pnpm knip",
+    "knip:production": "pnpm knip --production --strict",
+    "test": "pnpm test:unit",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "type:check": "pnpm type:check:sources && pnpm type:check:tests && pnpm type:check:tooling && pnpm type:check:integration && pnpm type:check:environments",
+    "type:check:sources": "tsc -p src/main && tsc -p src/renderer",
+    "type:check:tests": "tsc -p src/tsconfig.json",
+    "type:check:tooling": "tsc -p tsconfig.json",
+    "type:check:integration": "tsc -p integration",
+    "type:check:environments": "tsc -p environment-tests/tsconfig.main.json && tsc -p environment-tests/tsconfig.renderer.json && tsc -p environment-tests",
+    "build": "vite build && vite build --mode main",
+    "dev": "pnpm \"/^dev:(renderer|main)\\$/\"",
+    "dev:main": "vite build --watch --mode main",
+    "dev:renderer": "vite build --watch --no-emptyOutDir",
+    "bump-version": "pnpm version --no-commit-hooks --no-git-checks --no-git-tag-version",
+    "pack:dev": "pnpm bump-version prerelease && pnpm build && pnpm clean:tgz && pnpm pack && pnpm dlx shx@0.4.0 ls \"$PWD/*.tgz\"",
+    "clean": "pnpm clean:dist",
+    "clean:dist": "pnpm dlx shx@0.4.0 rm -rf dist",
+    "clean:dts": "pnpm dlx shx@0.4.0 rm -f \"src/**/*.d.scss.ts\"",
+    "clean:node_modules": "pnpm dlx shx@0.4.0 rm -rf node_modules",
+    "clean:tgz": "pnpm dlx shx@0.4.0 rm -f \"*.tgz\"",
+    "clean:all": "pnpm \"/^clean:(dist|dts|node_modules|tgz)\\$/\""
+  },
+  "devDependencies": {
+    "@freelensapp/extensions": "2.0.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.10.0",
+    "esbuild": "0.28.2",
+    "jsdom": "30.1.3",
+    "mobx": "7.0.6",
+    "mobx-react": "10.0.2",
+    "playwright": "1.64.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "sass-embedded": "1.105.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  },
+  "keywords": [
+    "extension",
+    "freelensapp",
+    "freelens",
+    "service-map",
+    "cilium",
+    "hubble",
+    "kubernetes"
+  ],
+  "packageManager": "pnpm@12.15.0+sha512.b3951d6d6ff4a9f13dc7cf56cd28d2b8eb37dbcc9c68e52e1e1191873ea9f82a017287ab50baadc5ccc494f036c67c0e47eb13608c2fa36f47711b61ea128e61",
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.7",
+    "@grpc/proto-loader": "^0.8.1",
+    "@xyflow/react": "12.9.3",
+    "elkjs": "0.9.3",
+    "libavoid-js": "0.5.0-beta.5"
+  }
+}
