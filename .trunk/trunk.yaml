@@ -158,6 +158,13 @@ lint:
         - git-diff-check
       paths:
         - "**/__snapshots__/**"
+    # The beads issue tracker writes and rewrites its config, hooks and skill
+    # files; a format fix there is undone by the next bd upgrade.
+    - linters:
+        - ALL
+      paths:
+        - .beads/**
+        - .agents/**
 actions:
   enabled:
     - trunk-announce
