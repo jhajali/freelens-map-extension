@@ -73,6 +73,8 @@ function Icon(_props: { material?: string; svg?: string; interactive?: boolean; 
 }
 
 export const Renderer = {
+  // the renderer IPC class, to extend; a test never sends on it
+  Ipc: class Ipc {},
   Component: {
     KubeObjectListLayout,
     MenuItem,

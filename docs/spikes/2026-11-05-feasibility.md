@@ -39,3 +39,13 @@ Screenshots show real cluster names and IPs, so they are kept out of the reposit
 - Double-click the 12-workload namespace: 12 workload cards in 5 release boxes including "(no Helm release)"; gateway routes drawn as gray dashed "HTTP" links, the route to a backend with no ready pods in red.
 - "Show on map" on the `shop/backend` Deployment opens the namespace with the card selected.
 - The page must be an `observer`: the host keeps it mounted across navigation and only changes the params.
+
+## M2 check — live data in Freelens 2.0.0
+
+- Installed as a `.tgz` with a new version (`0.1.0-m2.1`): disabling and enabling an extension keeps its old main module (Node caches it by path), so a main-process change needs a new version or a Freelens restart.
+- Data menu: `Data: Hubble + Prometheus`; Kubernetes ✓, Prometheus ✓ (found by name), Hubble Relay ✓ live, with the L7 hint (the cluster has no L7 visibility).
+- Links carry live rates (DNS links at a few hundredths of a flow per second on this quiet cluster); workload cards show CPU and RAM with % of limit where limits exist, and flows/s equal to the sum of their links.
+- Leaving the page closed the `kubectl port-forward svc/hubble-relay` within 4 s (unsubscribe on unmount); reopening started a new one.
+- Killing the port-forward while the page was open: a new one ran within 4 s, rates stayed on screen, status back to ✓.
+- After 5 minutes a snapshot file existed under the extension's data folder (`<clusterId>/snapshots/<epoch-ms>.json`), and the reopened page's Data menu said `Changes baseline: snapshot from <HH:MM>`; before that it said `since the map was opened`.
+- No extension errors in the main or renderer logs.

@@ -88,3 +88,20 @@ describe("flowsToEdges on a real (anonymized) capture", () => {
     expect(srcs).not.toContain("@host");
   });
 });
+
+describe("flowsToEdges weighting", () => {
+  it("weights flows by count and uses the given window", () => {
+    const syn = {
+      verdict: "FORWARDED",
+      IP: { source: "10.0.0.1", destination: "10.0.0.2" },
+      l4: { TCP: { destination_port: 80, flags: { SYN: true } } },
+      source: { namespace: "a", pod_name: "p" },
+      destination: { namespace: "b", pod_name: "q" },
+    };
+    const r = flowsToEdges([syn], inv, ctx, { counts: [10], windowSec: 5 });
+    expect(r.windowSec).toBe(5);
+    expect(r.edges[0].flowsPerSec).toBe(2);
+    expect(r.edges[0].connsPerSec).toBe(2);
+    expect(r.edges[0].samples[0].count).toBe(10);
+  });
+});

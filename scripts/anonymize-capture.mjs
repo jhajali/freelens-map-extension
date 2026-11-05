@@ -60,7 +60,7 @@ export function anonymize(rawDir, outDir, { seed, self, objectsDir = rawDir }) {
   // Values only (keys are structural); label/annotation keys stay, their values are rewritten.
   const walk = (v, key = "") => {
     if (typeof v === "string")
-      return /^(kind|apiVersion|type|verdict|Type|protocol|phase|traffic_direction|ipVersion|reason|operator|effect|policy_match_type)$/.test(
+      return /^(kind|apiVersion|status|resultType|type|verdict|Type|protocol|phase|traffic_direction|ipVersion|reason|operator|effect|policy_match_type)$/.test(
         key,
       )
         ? v

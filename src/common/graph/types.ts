@@ -93,7 +93,7 @@ export interface Snapshot {
   loadBalancers: LoadBalancer[];
   edges: RawEdge[];
   policies: PolicyRef[];
-  clusterCidrs: Record<string, string>;
+  clusterCidrs: Record<string, string[]>;
 }
 /** null = cluster view, a namespace name = namespace view, "@clusters" = all clusters. */
 export type View = null | string;

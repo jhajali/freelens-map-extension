@@ -22,6 +22,8 @@ interface HubbleFlow {
   destination_names?: string[];
 }
 
+export type FlowInventory = Pick<Inventory, "podToWorkload" | "serviceDns" | "serviceDnsByPort" | "clusterIps">;
+
 export interface FlowsResult {
   edges: RawEdge[];
   windowSec: number;
@@ -30,7 +32,7 @@ export interface FlowsResult {
 
 const NODE_IDENTITIES = new Set(["reserved:host", "reserved:remote-node", "reserved:health"]);
 
-function endpoint(e: FlowEndpoint = {}, ip: string, names: string[], inv: Inventory, ctx: IpContext): Endpoint {
+function endpoint(e: FlowEndpoint = {}, ip: string, names: string[], inv: FlowInventory, ctx: IpContext): Endpoint {
   if (e.namespace && e.pod_name) {
     const wid = inv.podToWorkload[`${e.namespace}/${e.pod_name}`];
     if (wid) return wid;
@@ -48,9 +50,15 @@ function endpoint(e: FlowEndpoint = {}, ip: string, names: string[], inv: Invent
 /** Aggregates Hubble flows into links keyed (source, target, protocol, port), with rates over the flows' time span. */
 export function flowsToEdges(
   flows: unknown[],
-  inv: Inventory,
+  inv: FlowInventory,
   ctx: IpContext,
-  opts: { reverseDns?: (ip: string) => string | null; sampleLimit?: number } = {},
+  opts: {
+    reverseDns?: (ip: string) => string | null;
+    sampleLimit?: number;
+    counts?: number[];
+    windowSec?: number;
+    capturedAt?: string;
+  } = {},
 ): FlowsResult {
   const acc = new Map<
     string,
@@ -67,7 +75,8 @@ export function flowsToEdges(
   >();
   let t0 = Infinity,
     t1 = -Infinity;
-  for (const raw of flows) {
+  for (const [i, raw] of flows.entries()) {
+    const w = opts.counts?.[i] ?? 1;
     const f = raw as HubbleFlow;
     if (!f || f.is_reply) continue;
     const t = Date.parse(f.time ?? "");
@@ -86,12 +95,12 @@ export function flowsToEdges(
     const key = `${src}|${dst}|${proto}|${port}`;
     let e = acc.get(key);
     if (!e) acc.set(key, (e = { src, dst, proto, port, flows: 0, conns: 0, drops: 0, samples: new Map() }));
-    e.flows++;
-    if (l4?.flags?.SYN && !l4.flags.ACK) e.conns++;
-    if (f.verdict === "DROPPED") e.drops++;
+    e.flows += w;
+    if (l4?.flags?.SYN && !l4.flags.ACK) e.conns += w;
+    if (f.verdict === "DROPPED") e.drops += w;
     const sk = `${srcIp}|${f.source?.pod_name ?? ""}|${dstIp}|${f.destination?.pod_name ?? ""}|${port}`;
     const s = e.samples.get(sk);
-    if (s) s.count++;
+    if (s) s.count += w;
     else
       e.samples.set(sk, {
         srcIp,
@@ -99,11 +108,11 @@ export function flowsToEdges(
         dstIp,
         dstPod: f.destination?.pod_name ?? null,
         port,
-        count: 1,
+        count: w,
         dns: null,
       });
   }
-  const windowSec = Number.isFinite(t0) ? Math.max(Math.round((t1 - t0) / 1000), 1) : 1;
+  const windowSec = opts.windowSec ?? (Number.isFinite(t0) ? Math.max(Math.round((t1 - t0) / 1000), 1) : 1);
   const dnsFor = (dst: string, s: Sample): string | null => {
     const svc = inv.clusterIps[s.dstIp];
     return (
@@ -132,7 +141,8 @@ export function flowsToEdges(
       samples,
     });
   }
-  return { edges, windowSec, capturedAt: Number.isFinite(t0) ? new Date(t0).toISOString() : new Date(0).toISOString() };
+  const capturedAt = opts.capturedAt ?? new Date(Number.isFinite(t0) ? t0 : 0).toISOString();
+  return { edges, windowSec, capturedAt };
 }
 
 /** The normalized graph the map draws: inventory + links. */
@@ -140,7 +150,7 @@ export function toSnapshot(
   inv: Inventory,
   flows: FlowsResult,
   cluster: string,
-  clusterCidrs: Record<string, string>,
+  clusterCidrs: Record<string, string[]>,
 ): Snapshot {
   return {
     cluster,

@@ -78,23 +78,6 @@ const hubbleProtos = {
   },
 };
 
-/**
- * Ships libavoid's WebAssembly next to the renderer bundle; the renderer loads it with
- * `new URL("libavoid.wasm", import.meta.url)` from the `freelens-extension://` scheme.
- *
- * @type {import("vite").Plugin}
- */
-const libavoidWasm = {
-  name: "libavoid-wasm",
-  generateBundle() {
-    this.emitFile({
-      type: "asset",
-      fileName: "libavoid.wasm",
-      source: readFileSync("node_modules/libavoid-js/dist/libavoid.wasm"),
-    });
-  },
-};
-
 export default defineConfig(({ mode }) => {
   const name = mode === "main" ? "main" : "renderer";
   const entryPoint = entryPoints[name];
@@ -108,7 +91,7 @@ export default defineConfig(({ mode }) => {
       // JSX with the automatic runtime, so it imports `react/jsx-runtime`.
       react(),
       // The committed `*.module.d.scss.ts` declarations of the CSS modules.
-      ...(name === "renderer" ? [noNodeInRenderer, cssModuleDeclarations(), libavoidWasm] : [hubbleProtos]),
+      ...(name === "renderer" ? [noNodeInRenderer, cssModuleDeclarations()] : [hubbleProtos]),
     ],
     css: {
       modules: {

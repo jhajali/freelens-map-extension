@@ -6,6 +6,7 @@ import {
   isDatabaseName,
   lbExposure,
   lbProvider,
+  nodeCidrs,
   PUBLIC_ENDPOINT_ANNOTATION,
 } from "./classify";
 
@@ -46,19 +47,37 @@ describe("isDatabaseName", () => {
 describe("classifyIp", () => {
   const ctx = {
     self: "dev",
-    clusterCidrs: { dev: "10.20.19.0/24", mgmt: "10.20.21.0/24" },
+    clusterCidrs: { dev: ["10.20.19.0/24"], mgmt: ["10.20.21.0/24", "10.20.31.0/24"] },
     namedNetworks: [{ cidr: "10.20.22.0/24", name: "SigNoz" }],
     clusterIps: { "10.98.0.10": { ns: "kube-system", name: "kube-dns" } },
   };
   it.each([
     ["10.20.19.100", "@host"],
     ["10.20.21.5", "@cluster:mgmt"],
+    ["10.20.31.7", "@cluster:mgmt"],
     ["10.98.0.10", "@kube-system"],
     ["10.20.22.110", "@internal:10.20.22.0/24"],
     ["140.82.121.3", "@internet:140.82.121.3"],
     ["2001:db8::1", "@internet:2001:db8::1"],
     ["fd00::1", "@internal:fd00::/64"],
   ])("%s -> %s", (ip, ep) => expect(classifyIp(ip, ctx)).toBe(ep));
+});
+
+describe("nodeCidrs", () => {
+  it("keeps one /24 per node subnet", () => {
+    const node = (...ips: Array<[string, string]>) => ({
+      kind: "Node",
+      metadata: { name: "n" },
+      status: { addresses: ips.map(([type, address]) => ({ type, address })) },
+    });
+    expect(
+      nodeCidrs([
+        node(["InternalIP", "10.1.2.3"], ["Hostname", "a"]),
+        node(["InternalIP", "10.1.2.9"], ["ExternalIP", "51.0.0.1"]),
+        node(["InternalIP", "10.1.5.1"]),
+      ]),
+    ).toEqual(["10.1.2.0/24", "10.1.5.0/24"]);
+  });
 });
 
 describe("load balancers", () => {

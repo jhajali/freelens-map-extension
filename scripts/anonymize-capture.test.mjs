@@ -45,6 +45,12 @@ describe.skipIf(!config || !existsSync(rawB))("anonymize", () => {
       expect(textB.includes(word), word).toBe(true);
   });
 
+  it("keeps Prometheus status strings", () => {
+    const body = JSON.parse(readFileSync(join(outB, "prom-cpu.json"), "utf8"));
+    expect(body.status).toBe("success");
+    expect(body.data.resultType).toBe("vector");
+  });
+
   it("maps a name to the same alias in both captures", () => {
     const nsA = new Set(
       lines(outA)

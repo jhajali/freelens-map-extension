@@ -1,26 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { loadFixture } from "../../../test/fixture";
-import { loadK8sSnapshot } from "./k8s-source";
+import { fixtureList, LISTED_KINDS } from "../../../test/fixture";
+import { loadK8sObjects, loadK8sSnapshot } from "./k8s-source";
 
 import type { KubeObjectLike } from "../../common/graph/inventory";
 
-const fx = loadFixture("capture-b");
-// A list response carries no kind on its items; loadK8sSnapshot must set it from the path.
-const core: Record<string, string> = {
-  "/apis/apps/v1/deployments": "Deployment",
-  "/apis/apps/v1/statefulsets": "StatefulSet",
-  "/apis/apps/v1/daemonsets": "DaemonSet",
-  "/api/v1/pods": "Pod",
-  "/api/v1/services": "Service",
-  "/apis/networking.k8s.io/v1/ingresses": "Ingress",
-  "/api/v1/namespaces": "Namespace",
-};
-const fakeList = async (path: string) => {
-  const kind = core[path];
-  return kind
-    ? fx.objects.filter((o) => o.kind === kind).map(({ kind: _, apiVersion: __, ...rest }) => rest as KubeObjectLike)
-    : null;
-};
+const fakeList = fixtureList("capture-b");
+const core = Object.keys(LISTED_KINDS);
 
 describe("loadK8sSnapshot", () => {
   it("builds the map without Gateway API, KubeBlocks or Cilium CRDs", async () => {
@@ -34,7 +19,8 @@ describe("loadK8sSnapshot", () => {
     const asked: string[] = [];
     await loadK8sSnapshot("c1", async (p) => (asked.push(p), null));
     for (const p of [
-      ...Object.keys(core),
+      ...core,
+      "/api/v1/nodes",
       "/apis/gateway.networking.k8s.io/v1/httproutes",
       "/apis/gateway.networking.k8s.io/v1/gateways",
       "/apis/workloads.kubeblocks.io/v1/instancesets",
@@ -51,5 +37,21 @@ describe("loadK8sSnapshot", () => {
     const s = await loadK8sSnapshot("c1", async (p) => (p === "/api/v1/pods" ? null : fakeList(p)));
     expect(s.unreadable).toEqual(["/api/v1/pods"]);
     expect((await loadK8sSnapshot("c1", fakeList)).unreadable).toEqual([]);
+  });
+});
+
+describe("loadK8sObjects", () => {
+  it("returns the nodes apart, with their kind, and never reports them unreadable", async () => {
+    const node = {
+      metadata: { name: "n1" },
+      status: { addresses: [{ type: "InternalIP", address: "10.0.0.5" }] },
+    } as KubeObjectLike;
+    const r = await loadK8sObjects(async (p) => (p === "/api/v1/nodes" ? [node] : fakeList(p)));
+    expect(r.nodes).toEqual([{ ...node, apiVersion: "v1", kind: "Node" }]);
+    expect(r.objects.some((o) => o.kind === "Node")).toBe(false);
+    expect(r.unreadable).toEqual([]);
+    const noNodes = await loadK8sObjects(fakeList);
+    expect(noNodes.nodes).toEqual([]);
+    expect(noNodes.unreadable).toEqual([]);
   });
 });

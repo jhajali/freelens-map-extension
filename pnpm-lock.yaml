@@ -178,9 +178,6 @@ importers:
       elkjs:
         specifier: 0.9.3
         version: 0.9.3
-      libavoid-js:
-        specifier: 0.5.0-beta.5
-        version: 0.5.0-beta.5
     devDependencies:
       '@freelensapp/extensions':
         specifier: 2.0.0
@@ -1388,9 +1385,6 @@ packages:
 
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
-
-  libavoid-js@0.5.0-beta.5:
-    resolution: {integrity: sha512-jHkn6A10815TgFhZ1paUD/NDnQkg4C66qJc2Juj1NpmO/+QXnJ4UjIdKQarkXLmI/QgXhEO3RWDxMi3i+uHPwA==}
 
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
@@ -3012,8 +3006,6 @@ snapshots:
   json-schema-traverse@1.0.0: {}
 
   json-schema-typed@8.0.2: {}
-
-  libavoid-js@0.5.0-beta.5: {}
 
   lightningcss-android-arm64@1.33.0:
     optional: true

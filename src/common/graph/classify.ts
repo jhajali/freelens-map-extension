@@ -1,3 +1,4 @@
+import type { KubeObjectLike } from "./inventory";
 import type { Endpoint } from "./types";
 
 const PORTS: Record<number, string> = {
@@ -59,7 +60,7 @@ export function isDatabaseName(nameAndImage: string): boolean {
 
 export interface IpContext {
   self: string;
-  clusterCidrs: Record<string, string>;
+  clusterCidrs: Record<string, string[]>;
   namedNetworks: Array<{ cidr: string; name: string }>;
   clusterIps: Record<string, { ns: string; name: string }>;
 }
@@ -95,12 +96,27 @@ function v6Prefix64(ip: string): string {
   return groups.join(":");
 }
 
+/** Distinct /24s (IPv6: /64s) of the nodes' InternalIPs, sorted. */
+export function nodeCidrs(nodes: KubeObjectLike[]): string[] {
+  const cidrs = new Set<string>();
+  for (const n of nodes)
+    for (const a of n.status?.addresses ?? []) {
+      if (a.type !== "InternalIP") continue;
+      cidrs.add(
+        a.address.includes(":")
+          ? `${v6Prefix64(a.address)}::/64`
+          : `${a.address.split(".").slice(0, 3).join(".")}.0/24`,
+      );
+    }
+  return [...cidrs].sort();
+}
+
 /** Endpoint for an IP that is not a pod: this cluster's nodes, another known cluster, a Service VIP, internal or Internet. */
 export function classifyIp(ip: string, ctx: IpContext): Endpoint {
   const svc = ctx.clusterIps[ip];
   if (svc) return `@${svc.ns}`;
-  for (const [name, cidr] of Object.entries(ctx.clusterCidrs))
-    if (inCidr(ip, cidr)) return name === ctx.self ? "@host" : `@cluster:${name}`;
+  for (const [name, cidrs] of Object.entries(ctx.clusterCidrs))
+    if (cidrs.some((c) => inCidr(ip, c))) return name === ctx.self ? "@host" : `@cluster:${name}`;
   if (!isPrivateIp(ip)) return `@internet:${ip}`;
   if (ip.includes(":")) return `@internal:${v6Prefix64(ip)}::/64`;
   return `@internal:${ip.split(".").slice(0, 3).join(".")}.0/24`;

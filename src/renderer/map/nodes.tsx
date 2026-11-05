@@ -13,7 +13,20 @@ import styles from "./service-map.module.scss";
 
 import type { Snapshot, Workload } from "../../common/graph/types";
 
-export const MapContext = createContext<{ s: Snapshot; byId: Map<string, Workload>; restarts: number }>(null as never);
+export const MapContext = createContext<{
+  s: Snapshot;
+  byId: Map<string, Workload>;
+  restarts: number;
+  /** flows/s in and out of each node of the view */
+  rates: Map<string, number>;
+  prometheus: boolean;
+  sampled: { cpu: Set<string>; mem: Set<string> };
+}>(null as never);
+
+const cpuText = (cores: number) => (cores < 1 ? `${Math.round(cores * 1000)}m` : cores.toFixed(2));
+const memText = (bytes: number) =>
+  bytes >= 2 ** 30 ? `${(bytes / 2 ** 30).toFixed(1)}Gi` : `${Math.round(bytes / 2 ** 20)}Mi`;
+const ofLimit = (v: number, lim: number | null) => (lim ? ` (${Math.round((v / lim) * 100)}%)` : "");
 
 // as <img>: the Inkscape files share element ids, which would clash inline
 const src = (svg: string) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -40,8 +53,10 @@ const Handles = () => (
 );
 
 export function Card({ id, data }: NodeProps) {
-  const { byId, restarts } = useContext(MapContext);
-  const w = byId.get(id)!;
+  const { byId, restarts, rates, prometheus, sampled } = useContext(MapContext);
+  const w = byId.get(id);
+  // a workload gone from the snapshot while the previous layout is still drawn
+  if (!w) return null;
   const v = health(w, restarts);
   return (
     <div
@@ -68,7 +83,15 @@ export function Card({ id, data }: NodeProps) {
         {w.ready}/{w.desired} pods
         {w.restarts > 0 && <span className={styles.warn}> ⟳ {w.restarts} restarts</span>}
       </div>
-      <div className={`${styles.row} ${styles.sub}`}>CPU/RAM need Prometheus</div>
+      {prometheus ? (
+        <div className={styles.row}>
+          CPU {sampled.cpu.has(id) ? cpuText(w.cpu) + ofLimit(w.cpu, w.cpuLim) : "–"} · RAM{" "}
+          {sampled.mem.has(id) ? memText(w.mem) + ofLimit(w.mem, w.memLim) : "–"}
+        </div>
+      ) : (
+        <div className={`${styles.row} ${styles.sub}`}>CPU/RAM need Prometheus</div>
+      )}
+      <div className={styles.row}>{(rates.get(id) ?? 0).toFixed(2)} flows/s</div>
     </div>
   );
 }

@@ -232,3 +232,36 @@
     margin-right: 5px;
   }
 }
+.data {
+  position: relative;
+  color: var(--muted);
+  font-size: 12px;
+  summary {
+    cursor: pointer;
+  }
+}
+.dataPanel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 10;
+  width: 340px;
+  padding: 10px 12px;
+  background: var(--node);
+  border: 1px solid var(--hair);
+  border-radius: 8px;
+  color: var(--ink-2);
+  > div + div {
+    margin-top: 8px;
+  }
+  b {
+    color: var(--ink);
+  }
+}
+.ok {
+  color: var(--good);
+}
+.fix {
+  margin-left: 16px;
+  color: var(--muted);
+}

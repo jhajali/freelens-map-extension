@@ -32,15 +32,25 @@ const INSTANCE_SETS: Array<[string, string]> = [
   ["/apis/apps.kubeblocks.io/v1alpha1/instancesets", "apps.kubeblocks.io/v1alpha1"],
 ];
 
-/** The snapshot, plus the core lists that could not be read (RBAC); a missing CRD is not reported. */
-export async function loadK8sSnapshot(cluster: string, list: List): Promise<Snapshot & { unreadable: string[] }> {
+/** The objects the map reads, the nodes apart (for their CIDRs), and the core lists that could not be read (RBAC). */
+export async function loadK8sObjects(
+  list: List,
+): Promise<{ objects: KubeObjectLike[]; unreadable: string[]; nodes: KubeObjectLike[] }> {
   const read = async (path: string, apiVersion: string, kind: string) =>
     (await list(path))?.map((o) => ({ ...o, apiVersion, kind })) ?? null;
-  const lists = await Promise.all(LISTS.map(([p, v, k]) => read(p, v, k)));
+  const [nodes, ...lists] = await Promise.all([
+    read("/api/v1/nodes", "v1", "Node"),
+    ...LISTS.map(([p, v, k]) => read(p, v, k)),
+  ]);
   const unreadable = LISTS.filter(([p], i) => CORE.has(p) && !lists[i]).map(([p]) => p);
   let sets: KubeObjectLike[] | null = null;
   for (const [p, v] of INSTANCE_SETS) if ((sets = await read(p, v, "InstanceSet"))) break;
-  const objects = [...lists, sets].flatMap((l) => l ?? []);
+  return { objects: [...lists, sets].flatMap((l) => l ?? []), unreadable, nodes: nodes ?? [] };
+}
+
+/** The snapshot, plus the core lists that could not be read (RBAC); a missing CRD is not reported. */
+export async function loadK8sSnapshot(cluster: string, list: List): Promise<Snapshot & { unreadable: string[] }> {
+  const { objects, unreadable } = await loadK8sObjects(list);
   const inv = buildInventory(objects, { cpu: {}, mem: {}, cpuLim: {}, memLim: {} });
   return {
     ...toSnapshot(inv, { edges: [], windowSec: 0, capturedAt: new Date().toISOString() }, cluster, {}),

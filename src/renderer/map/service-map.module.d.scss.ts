@@ -22,5 +22,9 @@ declare const classNames: {
   readonly group: "group";
   readonly chart: "chart";
   readonly label: "label";
+  readonly data: "data";
+  readonly dataPanel: "dataPanel";
+  readonly ok: "ok";
+  readonly fix: "fix";
 };
 export = classNames;

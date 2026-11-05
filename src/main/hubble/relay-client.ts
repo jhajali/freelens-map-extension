@@ -6,7 +6,13 @@ import * as protoLoader from "@grpc/proto-loader";
 // The .proto files are copied next to dist/main.js at build time (Cilium v1.20.2, api/v1).
 const protoDir = join(dirname(fileURLToPath(import.meta.url)), "hubble-proto");
 
-type ObserverClient = grpc.Client & { GetFlows(request: object): grpc.ClientReadableStream<{ flow?: unknown }> };
+type ObserverClient = grpc.Client & {
+  GetFlows(request: object): grpc.ClientReadableStream<{
+    flow?: unknown;
+    // enums as strings (loader option); defaults off, so absent fields are undefined
+    node_status?: { state_change?: string; node_names?: string[]; message?: string };
+  }>;
+};
 let Observer: (new (target: string, creds: grpc.ChannelCredentials) => ObserverClient) | null = null;
 
 function observer() {
@@ -31,6 +37,7 @@ export function streamFlows(
   opts: { namespaces?: string[]; last?: number },
   onFlow: (flow: unknown) => void,
   onEnd?: (error?: Error) => void,
+  onNodeStatus?: (e: { state: string; nodes: string[]; message: string }) => void,
 ): () => void {
   const client = new (observer())(target, grpc.credentials.createInsecure());
   const nsFilter = opts.namespaces?.length
@@ -41,7 +48,15 @@ export function streamFlows(
     follow: opts.last === undefined,
     ...(nsFilter ? { whitelist: nsFilter } : {}),
   });
-  call.on("data", (resp) => resp.flow && onFlow(resp.flow));
+  call.on("data", (resp) => {
+    if (resp.flow) onFlow(resp.flow);
+    else if (resp.node_status)
+      onNodeStatus?.({
+        state: resp.node_status.state_change ?? "UNKNOWN_NODE_STATE",
+        nodes: resp.node_status.node_names ?? [],
+        message: resp.node_status.message ?? "",
+      });
+  });
   call.on("error", (error: grpc.ServiceError) => {
     if (error.code !== grpc.status.CANCELLED) onEnd?.(error);
   });
