@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { loadFixture } from "../../../test/fixture";
 import { flowsToEdges, toSnapshot } from "../../common/graph/flows";
 import { buildInventory } from "../../common/graph/inventory";
-import { DEFAULT_THRESHOLDS, NO_FILTERS, type View, type Workload } from "../../common/graph/types";
+import { DEFAULT_THRESHOLDS, type MapEdge, NO_FILTERS, type View, type Workload } from "../../common/graph/types";
 import { pipeline } from "../../common/graph/view";
 import { cardHeight, layoutGraph, nodesFor, type RfNode } from "./layout";
 
@@ -59,6 +59,15 @@ describe("layoutGraph", () => {
       expect(b.style!.height - Math.max(...kids.map((k) => k.position.y + size(k).h))).toBe(16);
       expect(b.style!.width - Math.max(...kids.map((k) => k.position.x + size(k).w))).toBe(16);
     }
+  });
+
+  // ELK rejects an edge between two LAST nodes; "world" is a source for public IPs that bypass a LoadBalancer
+  it("lays out an edge from world to another egress node", async () => {
+    const ext = (id: string) => ({ id, type: "ext" as const, w: 180, h: 56 });
+    const edge = { id: "world->internal", source: "world", target: "internal" } as MapEdge;
+    await expect(
+      layoutGraph(null, [ext("world"), ext("internal")], [edge], { space: 1, dir: "RIGHT" }),
+    ).resolves.toBeDefined();
   });
 
   it("gives a workload with a long short name the taller card", () => {

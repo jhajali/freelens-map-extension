@@ -69,12 +69,14 @@ export function nodesFor(
 }
 
 // Pin entry points to the first layer and exits to the last; internal services fill the middle.
+// ELK rejects a FIRST node with an incoming edge and a LAST node with an outgoing one; "world" is also the
+// source of flows from public IPs that bypass a LoadBalancer, so even the fixed sides follow the edges.
 function side(id: string, edges: MapEdge[]): "FIRST" | "LAST" | null {
-  if (id === "internet" || id === "lan") return "FIRST";
-  if (id === "world" || id === "internal" || id.startsWith("net:")) return "LAST";
-  if (!/^(ns:|cluster:|infra)/.test(id) || !edges.length) return null;
   const hasIn = edges.some((e) => e.target === id),
     hasOut = edges.some((e) => e.source === id);
+  if (id === "internet" || id === "lan") return hasIn ? null : "FIRST";
+  if (id === "world" || id === "internal" || id.startsWith("net:")) return hasOut ? null : "LAST";
+  if (!/^(ns:|cluster:|infra)/.test(id) || !edges.length) return null;
   return hasOut && !hasIn ? "FIRST" : hasIn && !hasOut ? "LAST" : null;
 }
 
