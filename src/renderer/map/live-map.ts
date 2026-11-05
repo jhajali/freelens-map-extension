@@ -17,6 +17,7 @@ import {
 import { type List, loadK8sObjects } from "./k8s-source";
 
 import type { Snapshot } from "../../common/graph/types";
+import type { ClusterSettings } from "../../common/store/map-store";
 
 export interface LiveDeps {
   list: List;
@@ -31,7 +32,10 @@ export interface LiveDeps {
 
 export interface LiveState {
   snapshot: Snapshot | null;
-  baseline: Baseline | null;
+  /** what Changes compares with: the current objects with the baseline's flows */
+  baseline: Snapshot | null;
+  /** `snapshot from HH:MM`, `since HH:MM (map opened)` or `none yet` */
+  baselineLabel: string;
   sources: SourceStatus[];
   level: string;
   /** workloads with a CPU (resp. memory) sample of at least one pod: the others show no value, not 0 */
@@ -42,11 +46,13 @@ export interface LiveState {
 
 const OBJECTS_MS = 60_000,
   METRICS_MS = 30_000,
-  LEASE_MS = 20_000;
+  LEASE_MS = 20_000,
+  BASELINE_MS = 300_000;
 const EMPTY_FLOWS: FlowsResult = { edges: [], windowSec: 0, capturedAt: "" };
 const NO_METRICS: PodMetrics = { cpu: {}, mem: {}, cpuLim: {}, memLim: {} };
 const LEVELS = ["Kubernetes only", "Prometheus only", "Hubble only", "Hubble + Prometheus"];
 const resource = (path: string) => path.split("/").pop()!;
+const hhmm = (iso: string) => new Date(iso).toTimeString().slice(0, 5);
 
 export class LiveMap {
   private readonly subscriber = globalThis.crypto.randomUUID();
@@ -59,6 +65,7 @@ export class LiveMap {
   private metrics = NO_METRICS;
   private metricsKey = "";
   private nodesKey = "";
+  private lbKey = "";
   private servicesUnreadable = false;
   private inv: Inventory | null = null;
   private cidrs: Record<string, string[]> = {};
@@ -69,11 +76,14 @@ export class LiveMap {
   private tick: Tick | null = null;
   private baseline: Baseline | null = null;
   private baselineAsked = false;
+  // the first tick with a 5-minute window: the baseline while main has no snapshot, before main's since-opened
+  private own: FlowsResult | null = null;
 
   constructor(
     private readonly clusterId: string,
     private readonly cluster: string,
     private readonly deps: LiveDeps,
+    private readonly settings: () => ClusterSettings,
   ) {}
 
   start(onChange: (s: LiveState) => void): void {
@@ -84,6 +94,7 @@ export class LiveMap {
     every(OBJECTS_MS, () => this.loadObjects());
     every(METRICS_MS, () => this.loadMetrics());
     every(LEASE_MS, () => this.subscribe());
+    every(BASELINE_MS, async () => this.askBaseline());
     void this.guard(() => this.loadObjects());
   }
 
@@ -169,7 +180,7 @@ export class LiveMap {
       this.prom = { id: "prometheus", ok: false, detail: "services not readable", fix: null };
       return;
     }
-    const svc = findPrometheus(objects.filter((o) => o.kind === "Service"));
+    const svc = this.settings().prometheus ?? findPrometheus(objects.filter((o) => o.kind === "Service"));
     let metrics = NO_METRICS;
     if (!svc) {
       this.prom = {
@@ -206,23 +217,28 @@ export class LiveMap {
   }
 
   private rebuild() {
-    if (this.objects) this.inv = buildInventory(this.objects, this.metrics);
+    const lbPublic = this.settings().lbPublic;
+    this.lbKey = JSON.stringify(lbPublic);
+    if (this.objects) this.inv = buildInventory(this.objects, this.metrics, { lbPublic });
   }
 
   private request(): SubscribeRequest | null {
     const inv = this.inv;
     if (!inv) return null;
     const { podToWorkload, serviceDns, serviceDnsByPort, clusterIps } = inv;
+    const { namedNetworks, relay } = this.settings();
     return {
       clusterId: this.clusterId,
       subscriber: this.subscriber,
       inv: { podToWorkload, serviceDns, serviceDnsByPort, clusterIps },
-      ip: { self: this.cluster, clusterCidrs: this.cidrs, namedNetworks: [], clusterIps },
+      ip: { self: this.cluster, clusterCidrs: this.cidrs, namedNetworks, clusterIps },
+      ...(relay ? { relay } : {}),
     };
   }
 
   // metrics change every scrape, the flow inventory rarely: re-send only what main would see differently
   private async subscribeIfChanged() {
+    if (JSON.stringify(this.settings().lbPublic) !== this.lbKey) this.rebuild();
     const key = JSON.stringify(this.request());
     if (key !== this.sentKey) await this.subscribe();
   }
@@ -242,17 +258,31 @@ export class LiveMap {
   private onTick(tick: Tick) {
     if (tick.clusterId !== this.clusterId || this.stopped) return;
     this.tick = tick;
+    if (!this.own && tick.flows && tick.flows.windowSec >= 300) this.own = tick.flows;
     if (!this.baselineAsked) {
       this.baselineAsked = true;
-      this.deps.invoke(BASELINE, this.clusterId).then(
-        (b: Baseline | null) => {
-          this.baseline = b;
-          this.emit();
-        },
-        (err) => console.warn(`[service-map] baseline: ${String(err)}`),
-      );
+      this.askBaseline();
     }
     this.emit();
+  }
+
+  private askBaseline() {
+    this.deps.invoke(BASELINE, this.clusterId).then(
+      (b: Baseline | null) => {
+        this.baseline = b;
+        this.emit();
+      },
+      (err) => console.warn(`[service-map] baseline: ${String(err)}`),
+    );
+  }
+
+  private baselineOf(): { flows: FlowsResult | null; label: string } {
+    const b = this.baseline;
+    if (b?.source === "snapshot") return { flows: b.flows, label: `snapshot from ${hhmm(b.flows.capturedAt)}` };
+    const flows = this.own ?? b?.flows;
+    return flows
+      ? { flows, label: `since ${hhmm(flows.capturedAt)} (map opened)` }
+      : { flows: null, label: "none yet" };
   }
 
   private hubble(): SourceStatus {
@@ -270,9 +300,11 @@ export class LiveMap {
     const ws = this.inv?.workloads ?? [];
     const sampled = (m: Record<string, number>) =>
       new Set(ws.filter((w) => w.pods.some((p) => `${w.ns}/${p.name}` in m)).map((w) => w.id));
+    const base = this.baselineOf();
     this.onChange({
       snapshot: this.inv ? toSnapshot(this.inv, this.tick?.flows ?? EMPTY_FLOWS, this.cluster, this.cidrs) : null,
-      baseline: this.baseline,
+      baseline: this.inv && base.flows ? toSnapshot(this.inv, base.flows, this.cluster, this.cidrs) : null,
+      baselineLabel: base.label,
       sources: [this.kube, this.prom, hubble],
       sampled: { cpu: sampled(this.metrics.cpu), mem: sampled(this.metrics.mem) },
       level: LEVELS[(hubble.ok ? 2 : 0) + (this.prom.ok ? 1 : 0)]!,

@@ -49,7 +49,11 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const matches = (selector: Record<string, string>, labels: Record<string, string> = {}) =>
   Object.entries(selector).every(([k, v]) => labels[k] === v);
 
-export function buildInventory(objects: KubeObjectLike[], metrics: PodMetrics): Inventory {
+export function buildInventory(
+  objects: KubeObjectLike[],
+  metrics: PodMetrics,
+  opts: { lbPublic?: Record<string, string> } = {},
+): Inventory {
   const of = (kind: string) => objects.filter((o) => o.kind === kind);
   const kbClusters = new Map(
     of("Cluster")
@@ -226,7 +230,8 @@ export function buildInventory(objects: KubeObjectLike[], metrics: PodMetrics): 
     const ingress: Array<{ ip?: string; hostname?: string }> = s.status?.loadBalancer?.ingress ?? [];
     const ips = ingress.map((x) => x.ip ?? x.hostname ?? "").filter(Boolean);
     const annotations = s.metadata.annotations ?? {};
-    const publicEndpoint = annotations[PUBLIC_ENDPOINT_ANNOTATION] ?? null;
+    const publicEndpoint =
+      annotations[PUBLIC_ENDPOINT_ANNOTATION] ?? opts.lbPublic?.[`${s.metadata.namespace}/${s.metadata.name}`] ?? null;
     loadBalancers.push({
       kind: "Service",
       ns: s.metadata.namespace ?? "",

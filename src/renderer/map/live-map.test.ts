@@ -3,7 +3,17 @@ import { fixtureList, loadFixture, promBodies } from "../../../test/fixture";
 import { flowsToEdges } from "../../common/graph/flows";
 import { buildInventory } from "../../common/graph/inventory";
 import { PROM_QUERIES } from "../../common/graph/prometheus";
-import { BASELINE, CIDRS, type SourceStatus, SUBSCRIBE, TICK, type Tick, UNSUBSCRIBE } from "../../common/ipc";
+import {
+  BASELINE,
+  CIDRS,
+  type SourceStatus,
+  SUBSCRIBE,
+  type SubscribeRequest,
+  TICK,
+  type Tick,
+  UNSUBSCRIBE,
+} from "../../common/ipc";
+import { type ClusterSettings, DEFAULT_RECORD } from "../../common/store/map-store";
 import { type LiveDeps, LiveMap, type LiveState } from "./live-map";
 
 const fx = loadFixture("capture-b");
@@ -23,7 +33,11 @@ const flush = async () => {
   for (let i = 0; i < 50; i++) await Promise.resolve();
 };
 
-function setup(over: Partial<LiveDeps> = {}, subscribe: SourceStatus = hubbleOk) {
+function setup(
+  over: Partial<LiveDeps> = {},
+  subscribe: SourceStatus = hubbleOk,
+  settings: ClusterSettings = DEFAULT_RECORD.settings,
+) {
   const listeners = new Set<(...args: any[]) => void>();
   const invoke = vi.fn(async (channel: string, ...args: unknown[]): Promise<any> => {
     if (channel === SUBSCRIBE) return subscribe;
@@ -46,7 +60,7 @@ function setup(over: Partial<LiveDeps> = {}, subscribe: SourceStatus = hubbleOk)
     ...over,
   };
   const states: LiveState[] = [];
-  const map = new LiveMap("id-1", fx.cluster.self, deps);
+  const map = new LiveMap("id-1", fx.cluster.self, deps, () => settings);
   map.start((s) => states.push(s));
   const emit = (tick: Partial<Tick>) => {
     for (const fn of listeners) fn({ clusterId: "id-1", flows, status: hubbleOk, truncated: 0, l7: true, ...tick });
@@ -106,6 +120,31 @@ describe("LiveMap", () => {
     });
     await flush();
     expect(source("prometheus")).toMatchObject({ ok: false, detail: "no Prometheus service found" });
+  });
+
+  it("uses the Prometheus override instead of discovery", async () => {
+    const paths: string[] = [];
+    const { source } = setup({ query: async (p) => (paths.push(p), bodies.cpu) }, hubbleOk, {
+      ...DEFAULT_RECORD.settings,
+      prometheus: { ns: "mon", name: "thanos", port: 9091 },
+    });
+    await flush();
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths.every((p) => p.includes("mon") && p.includes("thanos") && p.includes("9091"))).toBe(true);
+    expect(source("prometheus").detail).toBe("mon/thanos");
+  });
+
+  it("sends named networks with the subscription", async () => {
+    const settings = {
+      ...DEFAULT_RECORD.settings,
+      namedNetworks: [{ cidr: "192.0.2.0/24", name: "office" }],
+      relay: { ns: "obs", svc: "relay", port: 4245 },
+    };
+    const { invoke } = setup({}, hubbleOk, settings);
+    await flush();
+    const req = invoke.mock.calls.find(([c]) => c === SUBSCRIBE)![1] as SubscribeRequest;
+    expect(req.ip.namedNetworks).toEqual(settings.namedNetworks);
+    expect(req.relay).toEqual(settings.relay);
   });
 
   it("reports a failed objects load on the kubernetes source", async () => {
@@ -187,7 +226,7 @@ describe("LiveMap", () => {
     const { map, deps } = setup();
     await flush();
     map.stop();
-    const again = new LiveMap("id-1", fx.cluster.self, deps);
+    const again = new LiveMap("id-1", fx.cluster.self, deps, () => DEFAULT_RECORD.settings);
     const states: LiveState[] = [];
     again.start((s) => states.push(s));
     await flush();
@@ -232,6 +271,70 @@ describe("LiveMap", () => {
     emit({ clusterId: "id-2" });
     expect(states).toHaveLength(n);
     expect(last().snapshot?.edges).toEqual([]);
+  });
+
+  it("keeps its own baseline once the window is 5 minutes", async () => {
+    const { emit, last } = setup();
+    await flush();
+    emit({ flows: { ...flows, windowSec: 60 } });
+    await flush();
+    expect(last()).toMatchObject({ baseline: null, baselineLabel: "none yet" });
+    const at = "2026-11-05T09:07:00Z";
+    emit({ flows: { ...flows, windowSec: 300, capturedAt: at } });
+    await flush();
+    const hhmm = new Date(at).toTimeString().slice(0, 5);
+    expect(last().baselineLabel).toBe(`since ${hhmm} (map opened)`);
+    expect(last().baseline?.edges).toHaveLength(171);
+    // the first such tick stays the baseline
+    emit({ flows: { ...flows, edges: [], windowSec: 300, capturedAt: "2026-11-05T09:20:00Z" } });
+    await flush();
+    expect(last().baselineLabel).toBe(`since ${hhmm} (map opened)`);
+    expect(last().baseline?.edges).toHaveLength(171);
+    expect(last().snapshot?.edges).toHaveLength(0);
+  });
+
+  it("asks main again after 5 minutes", async () => {
+    const { emit, last, invoke } = setup();
+    await flush();
+    emit({ flows: { ...flows, windowSec: 300 } });
+    await flush();
+    const asks = () => invoke.mock.calls.filter(([c]) => c === BASELINE).length;
+    expect(asks()).toBe(1);
+    const at = "2026-11-05T08:00:00Z";
+    const answer = invoke.getMockImplementation()!;
+    invoke.mockImplementation(async (c, ...a) =>
+      c === BASELINE
+        ? { flows: { ...flows, edges: flows.edges.slice(0, 5), capturedAt: at }, source: "snapshot" }
+        : answer(c, ...a),
+    );
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(asks()).toBe(2);
+    // main's snapshot wins over the map's own
+    expect(last().baselineLabel).toBe(`snapshot from ${new Date(at).toTimeString().slice(0, 5)}`);
+    expect(last().baseline?.edges).toHaveLength(5);
+  });
+
+  it("prefers its own baseline over main's since-opened", async () => {
+    const { emit, last, invoke } = setup();
+    const answer = invoke.getMockImplementation()!;
+    invoke.mockImplementation(async (c, ...a) =>
+      c === BASELINE
+        ? {
+            flows: { ...flows, edges: flows.edges.slice(0, 5), capturedAt: "2026-11-05T08:00:00Z" },
+            source: "since-opened",
+          }
+        : answer(c, ...a),
+    );
+    await flush();
+    emit({ flows: { ...flows, windowSec: 60 } });
+    await flush();
+    // without its own, main's since-opened is used
+    expect(last().baseline?.edges).toHaveLength(5);
+    const at = "2026-11-05T09:07:00Z";
+    emit({ flows: { ...flows, windowSec: 300, capturedAt: at } });
+    await flush();
+    expect(last().baselineLabel).toBe(`since ${new Date(at).toTimeString().slice(0, 5)} (map opened)`);
+    expect(last().baseline?.edges).toHaveLength(171);
   });
 
   it("renews its lease and unsubscribes on stop", async () => {

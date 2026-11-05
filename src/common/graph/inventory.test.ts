@@ -53,6 +53,23 @@ describe("buildInventory on a real (anonymized) cluster", () => {
     expect([result.exposure, result.publicEndpoint]).toEqual(["public", "203.0.113.9"]);
   });
 
+  it("a public-endpoint setting makes an internal LB public", () => {
+    const lb = objects.find((o) => o.kind === "Service" && o.spec?.type === "LoadBalancer")!;
+    const key = `${lb.metadata.namespace}/${lb.metadata.name}`;
+    const find = (opts?: Parameters<typeof buildInventory>[2]) =>
+      buildInventory(objects, metrics, opts).loadBalancers.find((l) => l.name === lb.metadata.name)!;
+    expect([find().exposure, find({ lbPublic: { [key]: "198.51.100.7" } }).exposure]).toEqual(["internal", "public"]);
+    expect(find({ lbPublic: { [key]: "198.51.100.7" } }).publicEndpoint).toBe("198.51.100.7");
+    const annotated = {
+      ...lb,
+      metadata: { ...lb.metadata, annotations: { "servicemap.freelens.io/public-endpoint": "203.0.113.9" } },
+    };
+    const both = buildInventory([...objects.filter((o) => o !== lb), annotated], metrics, {
+      lbPublic: { [key]: "198.51.100.7" },
+    }).loadBalancers.find((l) => l.name === lb.metadata.name)!;
+    expect(both.publicEndpoint).toBe("203.0.113.9");
+  });
+
   it("works on a cluster without Gateway API or KubeBlocks", () => {
     const plain = buildInventory(
       objects.filter((o) => !["HTTPRoute", "Gateway", "InstanceSet", "Cluster"].includes(o.kind)),

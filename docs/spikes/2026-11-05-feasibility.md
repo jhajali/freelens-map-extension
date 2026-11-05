@@ -49,3 +49,11 @@ Screenshots show real cluster names and IPs, so they are kept out of the reposit
 - Killing the port-forward while the page was open: a new one ran within 4 s, rates stayed on screen, status back to ✓.
 - After 5 minutes a snapshot file existed under the extension's data folder (`<clusterId>/snapshots/<epoch-ms>.json`), and the reopened page's Data menu said `Changes baseline: snapshot from <HH:MM>`; before that it said `since the map was opened`.
 - No extension errors in the main or renderer logs.
+
+## M3 check — full UI in Freelens 2.0.0
+
+- Installed as `.tgz` `0.1.0-m3.1`; the build ships `dist/libavoid.wasm` and loads without errors.
+- Toolbar: both rows present in spec order (breadcrumb, Color by, Layout, Data, Settings; quick views, Filters, Reset); Data menu `Hubble + Prometheus`.
+- Cluster view: 14 namespace cards; drill-in to the 12-workload namespace shows its cards, 5 draggable release boxes and the routed links.
+- Details panel on a workload: Open in Freelens, Logs and Shell buttons; sections Exposed via, Network policy, Pods, Labels, Inbound and Outbound peers. Logs opens a log tab in Freelens' dock (the visual check M1 spike 5 deferred).
+- No extension errors in the main or renderer logs. Not checked by hand in this run: live re-routing while dragging, PNG/SVG export output, the All-clusters view with several catalog clusters.

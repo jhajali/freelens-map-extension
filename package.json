@@ -96,6 +96,8 @@
     "@grpc/grpc-js": "^1.14.7",
     "@grpc/proto-loader": "^0.8.1",
     "@xyflow/react": "12.9.3",
-    "elkjs": "0.9.3"
+    "elkjs": "0.9.3",
+    "html-to-image": "1.11.13",
+    "libavoid-js": "0.5.0-beta.5"
   }
 }

@@ -20,6 +20,8 @@ export interface SubscribeRequest {
   subscriber: string;
   inv: FlowInventory;
   ip: IpContext;
+  /** port-forward target of the collector; default kube-system/hubble-relay:80 */
+  relay?: { ns: string; svc: string; port: number };
 }
 export interface Tick {
   clusterId: string;

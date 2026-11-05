@@ -39,6 +39,7 @@ export function nodesFor(
   edges: MapEdge[],
   f: Filters,
   keep: Set<string> | null,
+  explode = false,
 ): LayoutNode[] {
   const ids = new Set(edges.flatMap((e) => [e.source, e.target]));
   const ok = s.workloads.filter((w) => workloadVisible(w, f));
@@ -54,7 +55,13 @@ export function nodesFor(
     }
   else if (view !== "@clusters")
     for (const w of ok.filter((w) => w.ns === view && (!keep || keep.has(w.id)))) {
-      out.push({ id: w.id, type: "card", w: 230, h: cardHeight(w), group: w.release ?? NO_RELEASE });
+      out.push({
+        id: w.id,
+        type: "card",
+        w: 230,
+        h: cardHeight(w),
+        group: explode ? undefined : (w.release ?? NO_RELEASE),
+      });
       ids.delete(w.id);
     }
   for (const id of ids) out.push({ id, type: "ext", w: 180, h: 56 });

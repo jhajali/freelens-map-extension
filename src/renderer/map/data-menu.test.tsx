@@ -8,6 +8,7 @@ import type { LiveState } from "./live-map";
 const state: LiveState = {
   snapshot: null,
   baseline: null,
+  baselineLabel: "none yet",
   sources: [
     { id: "kubernetes", ok: true, detail: "objects listed", fix: null },
     {
@@ -46,12 +47,7 @@ describe("DataMenu", () => {
   });
 
   it("names the baseline in use", () => {
-    const flows = { edges: [], windowSec: 60, capturedAt: "2026-11-05T09:07:00Z" };
-    const line = (baseline: LiveState["baseline"]) =>
-      render(<DataMenu state={{ ...state, baseline }} />).container.textContent;
-    expect(line(null)).toContain("Changes baseline: none yet");
-    expect(line({ flows, source: "since-opened" })).toContain("Changes baseline: since the map was opened");
-    const hhmm = new Date(flows.capturedAt).toTimeString().slice(0, 5);
-    expect(line({ flows, source: "snapshot" })).toContain(`Changes baseline: snapshot from ${hhmm}`);
+    const text = render(<DataMenu state={{ ...state, baselineLabel: "snapshot from 09:07" }} />).container.textContent;
+    expect(text).toContain("Changes baseline: snapshot from 09:07");
   });
 });

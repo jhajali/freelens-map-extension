@@ -87,6 +87,38 @@ describe("Collectors", () => {
     expect(collectors.first("c1")).toBe(ticks[0]?.flows);
   });
 
+  it("port-forwards to the configured Relay service", async () => {
+    collectors.subscribe({
+      clusterId: "c1",
+      subscriber: "s1",
+      inv,
+      ip,
+      relay: { ns: "obs", svc: "relay", port: 4245 },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(openPortForward).toHaveBeenCalledWith("c1", "obs", "relay", 4245);
+  });
+
+  it("restarts when the Relay target changes", async () => {
+    sub();
+    await vi.advanceTimersByTimeAsync(0);
+    sub();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(openPortForward).toHaveBeenCalledTimes(1);
+    collectors.subscribe({
+      clusterId: "c1",
+      subscriber: "s1",
+      inv,
+      ip,
+      relay: { ns: "obs", svc: "relay", port: 4245 },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pfs[0]?.close).toHaveBeenCalled();
+    expect(streams[0]?.cancel).toHaveBeenCalled();
+    expect(openPortForward).toHaveBeenLastCalledWith("c1", "obs", "relay", 4245);
+    expect(streams).toHaveLength(2);
+  });
+
   it("lists the clusters with a live collector", () => {
     sub("c1");
     sub("c2");

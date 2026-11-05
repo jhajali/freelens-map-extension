@@ -34,15 +34,20 @@ const status = (ok: boolean, detail: string, fix: string | null = null): SourceS
 });
 
 /** Maps a port-forward or stream error to what the user sees; `beforeFlow` is a stream error before any flow. */
-export function errorStatus(message: string, beforeFlow: boolean): SourceStatus {
+export function errorStatus(message: string, beforeFlow: boolean, ns = "kube-system"): SourceStatus {
   if (/forbidden[\s\S]*portforward/i.test(message))
-    return status(false, "port-forward denied", 'needs "create" on "pods/portforward" in kube-system');
+    return status(false, "port-forward denied", `needs "create" on "pods/portforward" in ${ns}`);
   if (/not ?found/i.test(message))
-    return status(false, "Hubble Relay not found in kube-system", "enable it: cilium hubble enable --relay");
+    return status(false, `Hubble Relay not found in ${ns}`, "enable it: cilium hubble enable --relay");
   if (beforeFlow && /(ECONNRESET|Protocol error|http2|TLS|SSL)/i.test(message))
     return status(false, "TLS enabled, client certs not readable");
   return status(false, message);
 }
+
+const target = (req: SubscribeRequest) => {
+  const r = req.relay ?? { ns: "kube-system", svc: "hubble-relay", port: 80 };
+  return `${r.ns}/${r.svc}:${r.port}`;
+};
 
 interface Collector {
   subs: Map<string, number>;
@@ -85,6 +90,16 @@ export class Collectors {
 
   subscribe(req: SubscribeRequest): SourceStatus {
     let c = this.byCluster.get(req.clusterId);
+    if (c && target(req) !== target(c.req)) {
+      c.conn = null;
+      if (c.retry) this.deps.clearTimeout(c.retry);
+      c.retry = null;
+      c.attempt = 0;
+      this.disconnect(c);
+      c.req = req;
+      c.status = status(false, "connecting");
+      this.connect(c);
+    }
     if (!c) {
       c = {
         subs: new Map(),
@@ -178,11 +193,12 @@ export class Collectors {
     const fail = (error: Error) => {
       if (c.conn !== conn) return;
       c.conn = null;
-      c.status = errorStatus(error.message, false);
+      c.status = errorStatus(error.message, false, c.req.relay?.ns);
       this.disconnect(c);
       this.later(c, () => this.connect(c));
     };
-    this.deps.openPortForward(c.req.clusterId, "kube-system", "hubble-relay", 80).then((pf) => {
+    const relay = c.req.relay ?? { ns: "kube-system", svc: "hubble-relay", port: 80 };
+    this.deps.openPortForward(c.req.clusterId, relay.ns, relay.svc, relay.port).then((pf) => {
       // stopped or superseded meanwhile: never leave this kubectl running
       if (c.conn !== conn) return pf.close();
       c.pf = pf;
@@ -203,7 +219,7 @@ export class Collectors {
     const fail = (error: Error, beforeFlow: boolean) => {
       if (c.conn !== conn) return;
       c.conn = null;
-      c.status = errorStatus(error.message, beforeFlow);
+      c.status = errorStatus(error.message, beforeFlow, c.req.relay?.ns);
       this.disconnect(c);
       this.later(c, () => this.connect(c));
     };

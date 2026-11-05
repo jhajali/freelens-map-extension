@@ -5,13 +5,6 @@ import type { LiveState } from "./live-map";
 
 const NAMES = { kubernetes: "Kubernetes", prometheus: "Prometheus", hubble: "Hubble Relay" };
 
-const baselineText = (b: LiveState["baseline"]) =>
-  !b
-    ? "none yet"
-    : b.source === "snapshot"
-      ? `snapshot from ${new Date(b.flows.capturedAt).toTimeString().slice(0, 5)}`
-      : "since the map was opened";
-
 export function DataMenu({ state }: { state: LiveState }) {
   return (
     <details className={styles.data}>
@@ -26,7 +19,7 @@ export function DataMenu({ state }: { state: LiveState }) {
             </div>
           );
         })}
-        <div className={styles.sub}>Changes baseline: {baselineText(state.baseline)}</div>
+        <div className={styles.sub}>Changes baseline: {state.baselineLabel}</div>
       </div>
     </details>
   );

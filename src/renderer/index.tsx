@@ -4,9 +4,11 @@
  */
 
 import { Renderer } from "@freelensapp/extensions";
+import { ServiceMapStore } from "../common/store/map-store";
 import { withMenuItemErrorBoundary, withPageErrorBoundary } from "./components/error-boundary";
 import { MapIcon } from "./icons";
 import { MapIpcRenderer } from "./ipc";
+import { DefaultPaletteInput, PaletteHint } from "./map/preferences";
 import { MapPage, type PageParams } from "./map/service-map-page";
 import { PAGE_ID, ShowOnMapMenuItem } from "./menus/show-on-map";
 
@@ -15,7 +17,12 @@ import { PAGE_ID, ShowOnMapMenuItem } from "./menus/show-on-map";
 export default class ServiceMapRenderer extends Renderer.LensExtension {
   async onActivate() {
     MapIpcRenderer.createInstance(this);
+    ServiceMapStore.getInstanceOrCreate<ServiceMapStore>().loadExtension(this);
   }
+
+  appPreferences: Renderer.LensExtension["appPreferences"] = [
+    { title: "Service map", components: { Input: DefaultPaletteInput, Hint: PaletteHint } },
+  ];
 
   clusterPages: Renderer.LensExtension["clusterPages"] = [
     {

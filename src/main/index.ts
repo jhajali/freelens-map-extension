@@ -1,5 +1,6 @@
 import { Main } from "@freelensapp/extensions";
 import { TICK } from "../common/ipc";
+import { ServiceMapStore } from "../common/store/map-store";
 import { Collectors } from "./collector";
 import { ReverseDns } from "./dns";
 import { registerHandlers } from "./handlers";
@@ -31,6 +32,11 @@ export default class ServiceMapMain extends Main.LensExtension {
     // the handlers get the original promise and report the error per call; this branch only keeps it handled
     store.catch((e) => console.error(`[service-map] extension folder unavailable: ${String(e)}`));
     this.dispose = registerHandlers(ipc, collectors, store);
+    try {
+      ServiceMapStore.getInstanceOrCreate<ServiceMapStore>().loadExtension(this);
+    } catch (e) {
+      console.error(`[service-map] settings store failed to load: ${String(e)}`);
+    }
   }
 
   onDeactivate() {

@@ -44,8 +44,16 @@ class LensExtensionKubeObject {
 // The host's store loads the saved model with `fromStore()` and saves it
 // whenever `toJSON()` changes, through a `reaction`. The stub keeps nothing; a
 // test that needs that behaviour sets up the reaction itself.
+let lastStore: unknown;
 class ExtensionStore<M extends object> {
-  constructor(_params: { configName: string; defaults: M }) {}
+  constructor(_params: { configName: string; defaults: M }) {
+    lastStore = this;
+  }
+
+  // the most recently constructed store, in place of the host's singleton
+  static getInstance() {
+    return lastStore;
+  }
 }
 
 interface KubeObjectListLayoutProps {
@@ -72,6 +80,51 @@ function Icon(_props: { material?: string; svg?: string; interactive?: boolean; 
   return React.createElement("i");
 }
 
+// The host's form widgets, as the plain elements a test can fill and click.
+function Dialog({ isOpen, className, children }: { isOpen?: boolean; className?: string; children?: React.ReactNode }) {
+  return isOpen ? React.createElement("div", { role: "dialog", className }, children) : null;
+}
+function Input({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value?: string;
+  placeholder?: string;
+  onChange?: (v: string) => void;
+}) {
+  return React.createElement("input", {
+    value,
+    placeholder,
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange?.(e.target.value),
+  });
+}
+function Checkbox({
+  label,
+  value,
+  onChange,
+}: {
+  label?: React.ReactNode;
+  value?: boolean;
+  onChange?: (v: boolean) => void;
+}) {
+  return React.createElement(
+    "label",
+    null,
+    React.createElement("input", {
+      type: "checkbox",
+      checked: !!value,
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChange?.(e.target.checked),
+    }),
+    label,
+  );
+}
+function Button({ label, onClick }: { label?: React.ReactNode; onClick?: () => void }) {
+  return React.createElement("button", { onClick }, label);
+}
+
+const theme = { colors: { mainBackground: "#1e2124" } };
+
 export const Renderer = {
   // the renderer IPC class, to extend; a test never sends on it
   Ipc: class Ipc {},
@@ -79,8 +132,20 @@ export const Renderer = {
     KubeObjectListLayout,
     MenuItem,
     Icon,
+    Dialog,
+    Input,
+    Checkbox,
+    Button,
+    Notifications: { error: vi.fn() },
+    logTabStore: { createPodTab: vi.fn() },
+    createTerminalTab: vi.fn(() => ({ id: "tab-1" })),
+    terminalStore: { sendCommand: vi.fn(async () => {}) },
   },
+  Navigation: { showDetails: vi.fn(), navigate: vi.fn() },
+  Catalog: { getAllClusters: vi.fn(() => []) },
+  Theme: { activeTheme: { get: () => theme } },
   K8sApi: {
+    podsApi: { get: vi.fn() },
     LensExtensionKubeObject,
     KubeApi: class KubeApi {},
     KubeObjectStore: class KubeObjectStore {},
