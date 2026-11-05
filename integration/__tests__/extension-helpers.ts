@@ -36,9 +36,6 @@ export const kindClusterName = process.env.TEST_KIND_CLUSTER_NAME || "kind";
 // The namespace of the test objects, created by the fixtures.
 const testNamespace = "integration-tests";
 
-// The CRD of every API version of the extension's kind.
-const crdName = "examples.example.freelens.app";
-
 // The package name with `@` dropped and `/` turned into `--`
 // (`sanitizeExtensionName` in Freelens's `lens-extension.ts`).
 const sanitizedExtensionId = extensionName.replace("@", "").replace("/", "--");
@@ -48,8 +45,11 @@ const sanitizedExtensionId = extensionName.replace("@", "").replace("/", "--");
 // navigates.
 const pageLinkTestId = `link-for-sidebar-item-${sanitizedExtensionId}-service-map`;
 
-// The name of the test object in `examples/<version>/test`.
-const testObjectName = "test";
+// The test objects of `integration/fixtures/`, applied with kustomize.
+const fixturesDir = path.join(extensionDir, "integration", "fixtures");
+
+// The workload the sessions select, a Deployment in the test namespace.
+export const testWorkload = "web";
 
 const viewTimeout = { timeout: 60 * 1000 };
 
@@ -519,10 +519,9 @@ async function kindClusterPhase(window: Page, id: string): Promise<string | unde
 
 /**
  * Disconnects the kind cluster if it is connected, and waits until it is
- * disconnected. The app reads which versions of a CRD are served when it
- * connects, so a session that changes the CRDs starts and ends with a
- * disconnected cluster. Only the kind cluster is touched; the app may have
- * others.
+ * disconnected, so that a session starts and ends with the test objects
+ * applied while the app does not watch them. Only the kind cluster is touched;
+ * the app may have others.
  */
 export async function disconnectKindCluster({ window }: AppSession) {
   const id = await kindClusterId(window);
@@ -551,9 +550,8 @@ export async function disconnectKindCluster({ window }: AppSession) {
 }
 
 /**
- * Connects the kind cluster, selects the namespace of the test objects, and
- * returns the cluster's frame, where the extension's pages, details and menus
- * render.
+ * Connects the kind cluster and returns the cluster's frame, where the
+ * extension's page and menu items render.
  *
  * When the frame does not render and the dev file route of Freelens dev has
  * failed a request since the cluster was opened, a module of the frame did not
@@ -590,8 +588,6 @@ export async function openKindCluster(session: AppSession): Promise<Frame> {
     await frame.waitForSelector(sidebarSelector, viewTimeout);
   }
 
-  await selectTestNamespace(frame);
-
   return frame;
 }
 
@@ -606,17 +602,12 @@ async function clickSidebarItem(frame: Frame, testId: string) {
 }
 
 /**
- * Selects the namespace of the test objects in the namespace filter of the
- * extension's page, which its `KubeObjectListLayout` renders for a namespaced
- * resource. The selection holds for every namespaced list of the cluster, and
- * the app keeps it, so it is made only when the filter shows another one. The
- * session opens no page of the host, whose requests can log errors of their
- * own: the Pods page asks for pod metrics, and kind has no metrics server.
+ * Selects the namespace of the test objects in the namespace filter of a list
+ * page of the host. The selection holds for every namespaced list of the
+ * cluster, and the app keeps it, so it is made only when the filter shows
+ * another one.
  */
 async function selectTestNamespace(frame: Frame) {
-  await frame.waitForSelector(`[data-testid="${pageLinkTestId}"]`, viewTimeout);
-  await clickSidebarItem(frame, pageLinkTestId);
-
   const label = frame.locator(".NamespaceSelect").getByText(`Namespace: ${testNamespace}`, { exact: true });
   const namespaceSelect = await frame.waitForSelector(".NamespaceSelect", viewTimeout);
 
@@ -630,6 +621,64 @@ async function selectTestNamespace(frame: Frame) {
   await namespaceSelect.press("Enter");
   await namespaceSelect.click();
   await label.waitFor(viewTimeout);
+}
+
+/**
+ * Throws when the extension's error boundary rendered its error page in the
+ * frame.
+ */
+export async function expectNoErrorPage(frame: Frame) {
+  // The class of `ErrorPage`, as CSS modules name it in the bundle.
+  const errorPages = await frame.locator('[class*="_errorPage_"]').count();
+
+  if (errorPages > 0) {
+    throw new Error(`The frame shows ${errorPages} error page(s) of the extension`);
+  }
+}
+
+/**
+ * Opens the extension's map page from the sidebar and waits for the map.
+ */
+export async function openMapPage(frame: Frame) {
+  await frame.waitForSelector(`[data-testid="${pageLinkTestId}"]`, viewTimeout);
+  await clickSidebarItem(frame, pageLinkTestId);
+  await frame.waitForSelector(".react-flow", viewTimeout);
+}
+
+/**
+ * Returns the map node with the id, once it is rendered: `ns:<namespace>` on
+ * the cluster view, `<namespace>/<name>` for a workload.
+ */
+export async function waitForMapNode(frame: Frame, id: string): Promise<Locator> {
+  const node = frame.locator(`.react-flow__node[data-id="${id}"]`);
+
+  await node.waitFor(viewTimeout);
+
+  return node;
+}
+
+/**
+ * Opens the host's Deployments page from the sidebar, with the namespace of
+ * the test objects selected, and returns the row of the test workload.
+ */
+export async function openDeploymentsRow(frame: Frame): Promise<Locator> {
+  const deployments = "link-for-sidebar-item-deployments";
+
+  if (!(await frame.locator(`[data-testid="${deployments}"]`).count())) {
+    await clickSidebarItem(frame, "link-for-sidebar-item-workloads");
+  }
+
+  await frame.waitForSelector(`[data-testid="${deployments}"]`, viewTimeout);
+  await clickSidebarItem(frame, deployments);
+  await selectTestNamespace(frame);
+
+  const row = frame
+    .locator(".TableRow")
+    .filter({ has: frame.locator(".TableCell").getByText(testWorkload, { exact: true }) });
+
+  await row.waitFor(viewTimeout);
+
+  return row;
 }
 
 /**
@@ -663,89 +712,20 @@ function kubectl(...args: string[]): string {
 }
 
 /**
- * Removes what an earlier run left, then applies the CRD of the API version
- * and, once it is established, the test objects.
+ * Removes what an earlier run left, then applies the test objects and waits
+ * until their Deployments are available.
  */
-export function setUpCluster(version: string) {
+export function applyFixtures() {
   kubectl("delete", "namespace", testNamespace, "--ignore-not-found", "--wait");
-  kubectl("delete", "crd", crdName, "--ignore-not-found", "--wait");
-
-  kubectl("apply", "-k", path.join(extensionDir, "examples", version, "crds"));
-  kubectl("wait", "--for=condition=Established", `crd/${crdName}`, "--timeout=120s");
-  kubectl("apply", "-k", path.join(extensionDir, "integration", "fixtures", version));
+  kubectl("apply", "-k", fixturesDir);
+  kubectl("wait", "--namespace", testNamespace, "--for=condition=Available", "deployment", "--all", "--timeout=180s");
 }
 
 /**
- * Deletes the test objects and the CRD of the API version.
+ * Deletes the test objects.
  */
-export function tearDownCluster(version: string) {
-  try {
-    kubectl(
-      "delete",
-      "-k",
-      path.join(extensionDir, "integration", "fixtures", version),
-      "--ignore-not-found",
-      "--wait",
-    );
-  } finally {
-    kubectl("delete", "-k", path.join(extensionDir, "examples", version, "crds"), "--ignore-not-found", "--wait");
-  }
-}
-
-/**
- * Closes the details drawer if it is open: a click on a row toggles it.
- */
-async function closeDetails(frame: Frame) {
-  const details = frame.locator(".KubeObjectDetails");
-
-  if (await details.isVisible()) {
-    await frame.locator("body").press("Escape");
-    await details.waitFor({ state: "hidden", ...viewTimeout });
-  }
-}
-
-/**
- * Opens the extension's page from the sidebar and returns the table row of the
- * test object.
- */
-export async function openListPage(frame: Frame): Promise<Locator> {
-  await frame.waitForSelector(`[data-testid="${pageLinkTestId}"]`, viewTimeout);
-  await clickSidebarItem(frame, pageLinkTestId);
-  await closeDetails(frame);
-
-  const row = frame
-    .locator(".TableRow")
-    .filter({ has: frame.locator(".TableCell").getByText(testObjectName, { exact: true }) });
-
-  await row.waitFor(viewTimeout);
-
-  return row;
-}
-
-/**
- * Opens the details of the row's object and returns the value of the details
- * panel's `Api Version` item, after checking that the extension's error
- * boundary rendered no error page in the drawer.
- */
-export async function openDetails(frame: Frame, row: Locator): Promise<string | null> {
-  await row.getByText(testObjectName, { exact: true }).click();
-
-  const details = frame.locator(".KubeObjectDetails");
-  const apiVersion = details
-    .locator(".DrawerItem")
-    .filter({ has: frame.locator(".name").getByText("Api Version", { exact: true }) })
-    .locator(".value");
-
-  await apiVersion.waitFor(viewTimeout);
-
-  // The class of `ErrorPage`, as CSS modules name it in the bundle.
-  const errorPages = await details.locator('[class*="_errorPage_"]').count();
-
-  if (errorPages > 0) {
-    throw new Error(`The details drawer shows ${errorPages} error page(s) of the extension`);
-  }
-
-  return apiVersion.textContent();
+export function deleteFixtures() {
+  kubectl("delete", "-k", fixturesDir, "--ignore-not-found", "--wait");
 }
 
 /**
