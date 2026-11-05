@@ -34,11 +34,11 @@ Freelens 2.0 or newer. Each optional data source adds to what the map shows,
 and the **Data** menu on the map says which ones it found, with a fix for the
 missing ones:
 
-| Data sources found  | The map shows                                                              |
+| Data menu           | The map shows                                                              |
 | ------------------- | -------------------------------------------------------------------------- |
 | Kubernetes only     | Topology from workloads, Services, routes and LoadBalancers; no live data. |
-| Prometheus          | Plus CPU and RAM per workload.                                             |
-| Hubble Relay        | Plus live traffic: flows, protocols, drops, verdicts.                      |
+| Prometheus only     | Plus CPU and RAM per workload.                                             |
+| Hubble only         | Plus live traffic: flows, protocols, drops, verdicts.                      |
 | Hubble + Prometheus | Everything.                                                                |
 - **Hubble Relay**: Cilium with Hubble Relay enabled
   (`cilium hubble enable --relay`). Found as `kube-system/hubble-relay`
@@ -102,11 +102,16 @@ rules:
   KubeBlocks) are skipped.
 - When a permission is missing, the Data menu names it, and the map falls
   back to the sources it can read.
+- The panel's Logs and Shell buttons open Freelens's own log and terminal
+  tabs, which need `get` on `pods/log` and `create` on `pods/exec`. This role
+  leaves them out on purpose.
 
 ## Hubble Relay and TLS
 
 A plaintext Relay, Cilium's default, works as is. A Relay with TLS is not
-supported yet: the Data menu shows "TLS enabled, client certs not readable".
+supported yet. Cilium serves it on port 443, and the Data menu shows "Hubble
+Relay has no port 80"; with port 443 set in Settings, it shows "TLS enabled,
+client certs not readable".
 
 ## Public endpoints
 
@@ -144,8 +149,10 @@ The map's Settings button opens the settings of the current cluster:
 The extension talks to the clusters you open in Freelens, through Freelens.
 The only other requests are reverse DNS lookups of the public IPs your
 workloads talk to, through your system's resolver, to name them on the map.
-The history of traffic snapshots (24 hours, rates only) stays in Freelens's
-extension storage on your machine.
+What the extension keeps stays in Freelens's extension storage on your
+machine: 24 hours of traffic snapshots (the links with their endpoints,
+protocols and rates, no individual flows) and the node subnets of the
+clusters you opened.
 
 ## Development
 
