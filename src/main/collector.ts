@@ -37,6 +37,9 @@ const status = (ok: boolean, detail: string, fix: string | null = null): SourceS
 export function errorStatus(message: string, beforeFlow: boolean, ns = "kube-system"): SourceStatus {
   if (/forbidden[\s\S]*portforward/i.test(message))
     return status(false, "port-forward denied", `needs "create" on "pods/portforward" in ${ns}`);
+  // Cilium serves a TLS Relay on 443, a plaintext one on 80
+  const port = /does not have a service port (\d+)/.exec(message);
+  if (port) return status(false, `Hubble Relay has no port ${port[1]}`, "a TLS Relay (port 443) is not supported yet");
   if (/not ?found/i.test(message))
     return status(false, `Hubble Relay not found in ${ns}`, "enable it: cilium hubble enable --relay");
   if (beforeFlow && /(ECONNRESET|Protocol error|http2|TLS|SSL)/i.test(message))
