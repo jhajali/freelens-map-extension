@@ -722,15 +722,26 @@ describe("anonymize", () => {
       />,
     );
     await vi.waitFor(() => expect(container.querySelectorAll("[data-testid=workload-card]")).toHaveLength(12));
-    fireEvent.click(screen.getByText("Export PNG"));
-    await vi.waitFor(() => expect(names).toHaveLength(1));
-    const el = vi.mocked(toPng).mock.calls[0]![0];
+    // Export does nothing until React Flow's onInit, which jsdom can reach after the cards on a cold start;
+    // exportMap calls toPng at once, so clicking stops with the first export that starts
+    const before = vi.mocked(toPng).mock.calls.length;
+    await vi.waitFor(
+      () => {
+        if (vi.mocked(toPng).mock.calls.length === before) fireEvent.click(screen.getByText("Export PNG"));
+        expect(names).toHaveLength(1);
+      },
+      { timeout: 10_000 },
+    );
+    const el = vi.mocked(toPng).mock.calls[before]![0];
     expect(el.classList).toContain("react-flow__viewport");
     expect(el.querySelector("marker#arrow-crit")).not.toBeNull();
-    expect(vi.mocked(toPng).mock.calls[0]![1]).toMatchObject({ width: expect.any(Number), height: expect.any(Number) });
+    expect(vi.mocked(toPng).mock.calls[before]![1]).toMatchObject({
+      width: expect.any(Number),
+      height: expect.any(Number),
+    });
     expect(names[0]).toMatch(/^service-map-cluster-1-\d{8}-\d{4}\.png$/);
     click.mockRestore();
-  });
+  }, 15_000);
 
   it("search matches the aliases", async () => {
     const store = new ServiceMapStore();

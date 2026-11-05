@@ -61,11 +61,20 @@
       "description": [
         "Libraries that Freelens also has take the version of its default catalog in pnpm-workspace.yaml on main: the extension compiles and tests against the versions the host runs.",
         "Every dependency except the ones excluded with ! here: a dependency added to package.json is in the Freelens catalog unless it is added to that list. One that is in neither fails its lookup on the Dependency Dashboard.",
-        "The custom datasource has no release dates, so minimumReleaseAge is off; Freelens has the same pnpm policy and adopts only versions that already satisfy it."
+        "The custom datasource has no release dates, so minimumReleaseAge is off; Freelens has the same pnpm policy and adopts only versions that already satisfy it.",
+        "The libraries excluded after @freelensapp/** are the extension's own runtime libraries, which Freelens does not have; Renovate updates them from npm."
       ],
       "matchManagers": ["npm"],
       "matchDepTypes": ["dependencies", "devDependencies"],
-      "matchPackageNames": ["!@freelensapp/**"],
+      "matchPackageNames": [
+        "!@freelensapp/**",
+        "!@grpc/grpc-js",
+        "!@grpc/proto-loader",
+        "!@xyflow/react",
+        "!elkjs",
+        "!html-to-image",
+        "!libavoid-js"
+      ],
       "overrideDatasource": "custom.freelens-catalog",
       "rangeStrategy": "replace",
       "minimumReleaseAge": "0 days",

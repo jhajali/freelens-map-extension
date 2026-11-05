@@ -1,16 +1,19 @@
 {
   "name": "freelens-service-map-extension",
-  "version": "0.1.0-0",
+  "version": "0.1.0",
   "description": "Live service map for Freelens: namespaces, services, databases and traffic from Cilium Hubble",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jhajali/freelens-service-map-extension.git",
+    "url": "git+https://github.com/jhajali/freelens-map-extension.git",
     "directory": "."
   },
+  "homepage": "https://github.com/jhajali/freelens-map-extension#readme",
+  "bugs": "https://github.com/jhajali/freelens-map-extension/issues",
   "main": "dist/main.js",
   "renderer": "dist/renderer.js",
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "NOTICE"
   ],
   "engines": {
     "node": ">= 24.0.0",

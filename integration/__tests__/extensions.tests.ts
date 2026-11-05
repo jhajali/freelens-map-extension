@@ -5,7 +5,7 @@
 
 // Installs this checkout in place in Freelens dev, uninstalling whatever
 // installation of the extension the app had. The extension has no preferences
-// page; the map page needs a cluster, which M4's cluster sessions bring.
+// page; the map page needs a cluster, which `service-map.tests.ts` brings.
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { appReady, connectApp, installExtension } from "./extension-helpers";

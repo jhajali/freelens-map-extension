@@ -24,9 +24,13 @@ const lines = (dir) =>
 describe.skipIf(!config || !existsSync(rawB))("anonymize", () => {
   const outA = mkdtempSync(join(tmpdir(), "anon-a-")),
     outB = mkdtempSync(join(tmpdir(), "anon-b-"));
-  anonymize(rawB, outB, config);
-  anonymize(rawA, outA, { ...config, objectsDir: rawB });
-  const textB = readAll(outB);
+  let textB = "";
+  // in a hook: Vitest still runs the body of a skipped suite to collect it, and without the config this throws
+  beforeAll(() => {
+    anonymize(rawB, outB, config);
+    anonymize(rawA, outA, { ...config, objectsDir: rawB });
+    textB = readAll(outB);
+  });
 
   it("removes every real name, host and internal range", () => {
     for (const word of FORBIDDEN) expect(textB.includes(word), word).toBe(false);

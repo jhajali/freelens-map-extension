@@ -227,6 +227,20 @@ describe("Collectors", () => {
     expect(sub()).toEqual({ id: "hubble", ok: false, detail: "TLS enabled, client certs not readable", fix: null });
   });
 
+  it("explains a TLS Relay, whose Service has port 443 instead of 80", async () => {
+    openPortForward.mockRejectedValueOnce(
+      new Error("kubectl port-forward exited with 1: error: Service hubble-relay does not have a service port 80"),
+    );
+    sub();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sub()).toEqual({
+      id: "hubble",
+      ok: false,
+      detail: "Hubble Relay has no port 80",
+      fix: "a TLS Relay (port 443) is not supported yet",
+    });
+  });
+
   it("survives a stream that throws when it starts", async () => {
     const unhandled = vi.fn();
     process.on("unhandledRejection", unhandled);
